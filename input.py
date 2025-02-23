@@ -4,6 +4,7 @@ import configparser
 
 class InputHandler:
     """ 各具象入力を抽象入力に変換するクラス """
+    FILENAME = "inputconfig.ini"
     def __init__(self):
         self.direction = Vector2(0, 0)
         self.skills = [False] * 3
@@ -14,7 +15,8 @@ class InputHandler:
         self.key_map = {}
         # 設定ファイル読み込み
         self.config = configparser.ConfigParser()
-        self.config.read("inputconfig.ini")
+        self.config.optionxform = str
+        self.load_config()
         # 検証は後で実装
 
     def __str__(self):
@@ -25,6 +27,18 @@ class InputHandler:
         self.skills = skills
         self.attack = attack
         self.shield = shield
+
+    def get_direction(self):
+        return self.direction
+
+    def get_skills(self):
+        return self.skills
+
+    def get_attack(self):
+        return self.attack
+
+    def get_shield(self):
+        return self.shield
 
     """ 各アクションから抽象入力へ変換 """
     def add_action(self, action):
@@ -126,9 +140,10 @@ class InputHandler:
                 return False
             return True
         elif action!="":
-            if (not action in self.actions) and value >= threshold:
+            depth = float(self.config["JOYSTICK"]["depth"])
+            if (not action in self.actions) and value >= depth:
                 self.add_action(action)
-            elif action in self.actions and value < threshold:
+            elif action in self.actions and value < depth:
                 self.remove_action(action)
             else:
                 return False
@@ -138,11 +153,41 @@ class InputHandler:
 
     """ コントローラーハットボタン入力から入力へ変換 """
     def hatmove(self, hat, value):
-        using = self.config["JOYSTICK"][f"Hat{hat}"]
+        using = bool(self.config["JOYSTICK"][f"Hat{hat}"])
         if using:
             self.direction.update(value)
             return True
         return False
+
+
+    """コントローラー接続時に未設定の処理を追加"""
+    def connect_joy(self, num_button, num_axis, num_hat):
+        buttons = [k for k in self.config["JOYSTICK"].keys() if "Button" in k]
+        axis = [k for k in self.config["JOYSTICK"].keys() if "Axis" in k]
+        hats = [k for k in self.config["JOYSTICK"].keys() if "Hat" in k]
+        if len(buttons) < num_button:
+            for i in range(len(buttons), num_button):
+                self.config["JOYSTICK"][f"Button{i}"]=""
+        if len(axis) < num_axis:
+            for i in range(len(axis),num_axis):
+                self.config["JOYSTICK"][f"Axis{i}"]=""
+        if len(hats) < num_hat:
+            for i in range(len(hats),num_hat):
+                self.config["JOYSTICK"][f"Hat{i}"]=""
+        if not "depth" in self.config["JOYSTICK"]:
+            self.config["JOYSTICK"]["depth"]=0
+        if not "threshold" in self.config["JOYSTICK"]:
+            self.config["JOYSTICK"]["depth"]=0.5
+
+
+    """ファイルから入力設定を読み込み"""
+    def load_config(self):
+        self.config.read(self.FILENAME)
+
+    """入力設定をファイルに更新"""
+    def save_config(self):
+        with open(self.FILENAME, 'w') as configfile:
+            self.config.write(configfile, False)
 
 
 """ デバッグ用関数 """
@@ -169,6 +214,7 @@ def debug():
             elif event.type == pg.JOYDEVICEADDED:
                 joy = pg.joystick.Joystick(event.device_index)
                 joysticks[joy.get_instance_id()] = joy
+                Input.connect_joy(joy.get_numbuttons(), joy.get_numaxes(), joy.get_numhats())
                 print(f"{joy.get_name()} connencted!")
             elif event.type == pg.JOYDEVICEREMOVED:
                 print(f"{joysticks[event.instance_id].get_name()} disconnected!")
@@ -189,7 +235,7 @@ def debug():
         if input_changed:
             print(Input)
 
-
+    Input.save_config()
     pg.quit()
 
 if __name__ == '__main__':
