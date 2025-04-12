@@ -12,7 +12,6 @@ class InputHandler:
         self.shield = False
         self.actions = []
 
-        self.key_map = {}
         # 設定ファイル読み込み
         self.config = configparser.ConfigParser()
         self.config.optionxform = str

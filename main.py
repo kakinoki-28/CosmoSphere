@@ -7,10 +7,10 @@ class MainApp:
 
     def __init__(self):
         pg.init()
-        self.init_game()
+        self.init_app()
 
     # 初期化
-    def init_game(self):
+    def init_app(self):
         self.run = True
         self.winstyle = 0
 
