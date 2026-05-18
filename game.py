@@ -532,7 +532,7 @@ class Shield:
         # 変数
         self.status = "wait"
         self.user = user
-        self.pos = self.user.pos
+        self.pos = self.user.pos.copy()
         self.radius = self.CONST.radius_first
         self.startup_count = 0
         self.instant_count = 0
@@ -579,6 +579,7 @@ class Shield:
             hit_objects.append(self)
         for bullet in self.hitback_bullets:
             hit_objects += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
+
         return hit_objects
 
     def damage_process(self, damage:int):
@@ -599,31 +600,28 @@ class Shield:
                         target.active = False
                     else:
                         target.bounced = True
-                        if self.pos.distance_to(target.user.pos) < self.radius:
-                            target_user_nearby = True
-                        else:
-                            target_user_nearby = False
+                        # 反射位置の調整（互いのキャラが接近中は無効）
+                        if self.pos.distance_to(target.user.pos) >= self.radius:
+                            if (target.pos-self.pos).length() == 0:
+                                target.pos += Vector2(1,0)*(self.radius+target.radius) - (target.pos-self.pos)
+                            else:
+                                target.pos += (target.pos-self.pos).normalize()*(self.radius+target.radius) - (target.pos-self.pos)
 
-                        # キャラへ反射
-                        enemy_pred = target.user.pos + target.user.speed - target.pos
+                        # 相手の予測位置へ反射
+                        enemy_predict_pos = target.user.pos + target.user.speed - target.pos
                         # 反射するための前処理
                         target.time = 0
                         self.hitback_bullets.append(target)
                         target.user = self.user
                         target.no_damage_count=8
                         # 反射速度を加算(キャラへ反射)
-                        target.speed = 1.1*target.speed.length()*enemy_pred
-                        # 位置を修正
-                        if not target_user_nearby:
-                            if (target.pos-self.pos).length() == 0:
-                                target.pos += Vector2(1,0).normalize()*(self.radius+target.radius) - (target.pos-self.pos)
-                            else:
-                                target.pos += (target.pos-self.pos).normalize()*(self.radius+target.radius) - (target.pos-self.pos)
+                        target.speed = 1.1*target.speed.length()*enemy_predict_pos
+
                 elif type(target)==Drone:
                     target.active = False
 
     def update(self):
-        self.pos = self.user.pos
+        self.pos = self.user.pos.copy()
         # 発動前
         if self.status == "start_up":
             if self.startup_count < self.STARTUP:
