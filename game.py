@@ -494,37 +494,8 @@ class Effect:
         if self.name == "airjump" and self.count>10:
             self.active = False
 
-#当たり判定
-class Collision_Circle:
-    def __init__(self, leng, gap, r, damage):
-        self._length = leng
-        self._normal_gap = gap  #法線ギャップ
-        self._radius = r
-        self._damage = damage
 
-    @property
-    def length(self):
-        return self._length
-
-    @property
-    def normal_gap(self):
-        return self._normal_gap
-
-    @property
-    def radius(self):
-        return self._radius
-
-    @property
-    def damage(self):
-        return self._damage
-
-    def pos(self, pos:Vector2, angle:float):
-        return Vector2(0,1).rotate(-angle)*self.length + Vector2(1,0).rotate(-angle)*self.normal_gap
-
-
-#ここまで完了
-
-# シールド
+""" 弾をはじき、タイミングを合わせると近接攻撃も防ぐシールド """
 class Shield:
     def __init__(self, user):
         # 定数
@@ -649,71 +620,71 @@ class Shield:
             if not bullet.active and not bullet.display:
                 self.hitback_bullets.remove(bullet)
 
-# 共通弾
-class Bullet:
-    def __init__(self, name, user, speed, angle, damage):
-        # 定数
-        self.MAX_TIME = 40
-        self.name = name
-        self.user = user
-        self.SPEED = speed
-        self.COMBO_INTERVAL = 0
-        self.angle = angle
-        self.radius = 10
+
+""" 事前に入力された速度方向に真っ直ぐ飛翔する弾 """
+class LinerBullet(GameObject):
+    def __init__(self, name:str, user:Character, speed:Vector2, CONST=gameconst.LinerBulletConst() ):
+        GameObject.__init__( self, user.pos, speed )
+        self.CONST = CONST
         # 変数
-        self.x = user.x
-        self.y = user.y
-        self.hp = 10
-        self.speed_x = speed*math.sin(math.radians(angle))
-        self.speed_y = speed*math.cos(math.radians(angle))
-        self.time = 0
-        self.active = True
-        self.display = True
-        self.hitwait_count = 0
-        self.no_damage_count = 0
-        self.bounced = False
-        self.Hit_circle = Collision_Circle(0, 0, self.radius, damage)
+        self.user = user
+        self.alive_count = 0        # 弾の存在時間のカウント
+        self.hitwait_count = 0      # ヒットストップ中の待機カウント
+        self.no_damage_count = 0    # 弾に対するダメージ無敵カウント
+        self.hp = self.CONST.hp_max
+
+        self.active = True          # 弾が更新する(動く)かどうかの判定
+        self.display = True         # 弾が表示されるかどうかの判定
+        self.bounced = False        # シールド・台などに反射した後かどうかの判定
 
     @property
     def frame(self):
         if self.display:
-            return "bullet," + self.name +","+ str(round(self.x)) +","+ str(round(self.y)) +","+ str(round(self.angle))+"\n"
+            return "bullet " + self.CONST.name +" "+ str(round(self.pos)) +" "+ str(round(self.speed, 1)) +"\n"
         else:
             return ""
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
-        if anti_bullet and distance(pos, (self.x, self.y)) < self.radius+r and self.active and self.no_damage_count==0:
-            self.hp -= damage
-            return [self]
-        else:
-            return []
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
+        for circle in self.CONST.hit_circles:
+            circle_pos = self.pos + circle.rel_pos
+            if anti_bullet and circle_pos.distance_to(pos) < circle.radius+r and self.active and self.no_damage_count==0:
+                return [self]
+        return []
 
-    def update(self):
+    def damage_process(self, damage):
+        self.hp -= damage
+
+    def update(self, stage:Stage):
         if self.active:
             self.attack()
             if self.no_damage_count>0:
                 self.no_damage_count-=1
-            self.x += self.speed_x
-            self.y += self.speed_y
-            # 台衝突判定
-            for each in STAGE:
-                if ((self.y-self.speed_y <= each.y-self.radius <= self.y)
-                 or (self.y <= each.y+self.radius <= self.y-self.speed_y)) and self.x in each:
+
+            GameObject.update(self)
+
+            # 地面・台との衝突判定
+            for circle in self.CONST.hit_circles:
+                foot, top = (self.pos + circle.rel_pos) - Vector2(0, circle.radius), (self.pos + circle.rel_pos) + Vector2(0, circle.radius)
+                last_foot, last_top = foot-self.speed, top-self.speed
+                for platform in stage.platforms:
+                    if ((platform.is_below(last_top) and platform.is_above(top)) or (platform.is_above(last_foot) and platform.is_below(foot))):
+                        if self.bounced:
+                            self.active = False
+                        else:
+                            self.speed.reflect_ip(Vector2(0,1))
+                            self.pos.y += self.speed.y
+                            self.bounced = True
+                        break
+                if foot[1] < stage.GND_HEIGHT:
                     if self.bounced:
                         self.active = False
                     else:
-                        self.speed_y *= -1
-                        self.y += self.speed_y
+                        self.speed.reflect_ip(Vector2(0,1))
                         self.bounced = True
-                    break
-            if self.y-self.radius <GND_HEIGHT:
-                if self.bounced:
-                    self.active = False
-                else:
-                    self.speed_y *= -1
-                    self.bounced = True
-            self.time += 1
-            if self.hp<0 or self.time>self.MAX_TIME:
+
+            # 時間管理
+            self.alive_count += 1
+            if self.hp<0 or self.alive_count>self.CONST.alive_frame:
                 self.active = False
         else:
             if self.hitwait_count>0:
@@ -722,21 +693,27 @@ class Bullet:
                 self.display = False
 
     def attack(self):
-        x,y = self.Hit_circle.pos(self.x, self.y, self.angle)
-        damage_ratio = self.Hit_circle.damage/10
-        #ターゲット探索
-        for enemy in self.user.target_list:
-            # 相手のオブジェクトと衝突判定
-            for target in enemy.hit_check((x,y), self.Hit_circle.radius, self.Hit_circle.damage, anti_bullet=True):
-                # キャラに当たった
-                if type(target) == Character:
-                    # 無敵処理
-                    target.no_damage_count = 16
-                    target.combo_count = self.COMBO_INTERVAL
-                    # ヒットストップ処理
-                    target.set_stop(8*damage_ratio, 8*damage_ratio)
-                    self.hitwait_count = int(8*damage_ratio/2)
-                self.active = False
+        for circle in self.CONST.hit_circles:
+            pos = self.pos + circle.rel_pos
+            damage_ratio = circle.damage/self.CONST.hit_circles[0].damage
+            for enemy in self.user.target_list:
+                # 相手のオブジェクトと衝突判定
+                for target in enemy.hit_check(pos, circle.radius, anti_bullet=True):
+                    # ダメージ処理
+                    target.damage_process(circle.damage)
+                    # キャラに当たった
+                    if type(target) == Character:
+                        # 無敵処理
+                        target.no_damage_count = self.CONST.no_damage_frame
+                        target.combo_count = self.CONST.combo_interval
+                        # ヒットストップ処理
+                        if self.CONST.is_include_ratio:
+                            target.set_stop( self.CONST.hit_stop*damage_ratio, self.CONST.shake*damage_ratio)
+                            self.hitwait_count = int(self.CONST.hit_stop*damage_ratio/2)
+                        else:
+                            target.set_stop( self.CONST.hit_stop, self.CONST.shake)
+                            self.hitwait_count = int(self.CONST.hit_stop/2)
+                    self.active = False
 
 # ハンマー攻撃(赤近接)
 class Hammer:
