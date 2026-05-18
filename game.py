@@ -133,13 +133,13 @@ class GameObject:
 
 class Character(GameObject):
     def __init__(self, color, my_id="", input=InputHandler()):
-        GameObject.__init__( Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius), Vector2(0,0) )
         self.CONST = gameconst.CharacterConst()
 
         self.color = color
         self.radius = self.CONST.radius
 
         self.id = my_id
+        GameObject.__init__( self, Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius), Vector2(0,0) )
 
         self.on_platform = False
         self.on_ground = True
@@ -190,7 +190,7 @@ class Character(GameObject):
             self.shake_x = self.shake_y = 0
 
         frame = "player,"+ self.color +"," + str(self.hp) +"," + str(self.HP_MAX) +","
-        frame += str(round(self.pos[0])+self.shake_x)+","+str(round(self.pos[1])+self.shake_y)+","
+        frame += str(round(self.pos.x)+self.shake_x)+","+str(round(self.pos.y)+self.shake_y)+","
         frame += self.motion_id +","+ str(self.motion_count) +","
         frame += str(self.combo_count) +","+ str(self.no_damage_count) + "\n"
 
@@ -233,28 +233,28 @@ class Character(GameObject):
             self.shield.shield_stop()
 
         #スキル1 KeyDown
-        if (new_input.skill[0]==True and self.Input.skill[0]==False):
+        if (new_input.skills[0]==True and self.Input.skills[0]==False):
             if self.color =="red" and not self.action_busy:
                 self.energy_gun.lockon()
         #スキル1 KeyUp
-        if (self.Input.skill[0]==True and new_input.skill[0]==False):
+        if (self.Input.skills[0]==True and new_input.skills[0]==False):
             if self.color =="red":
                 self.energy_gun.shoot()
 
         #スキル2 KeyDown
-        if (new_input.skill[1]==True and self.Input.skill[1]==False):
+        if (new_input.skills[1]==True and self.Input.skills[1]==False):
             if self.color =="red" and not self.action_busy:
                 self.drone.throw_start()
         #スキル2 KeyUp
-        if (self.Input.skill[1]==True and new_input.skill[1]==False):
+        if (self.Input.skills[1]==True and new_input.skills[1]==False):
             pass
 
         #スキル3 KeyDown
-        if (new_input.skill[2]==True and self.Input.skill[2]==False):
+        if (new_input.skills[2]==True and self.Input.skills[2]==False):
             if self.color =="red" and (self.sync_shot.shoot_count==self.sync_shot.BULLET_MAX or not self.action_busy):
                 self.sync_shot.shoot()
         #スキル2 KeyUp
-        if (self.Input.skill[2]==True and new_input.skill[2]==False):
+        if (self.Input.skills[2]==True and new_input.skills[2]==False):
             pass
 
         self.Input = new_input
@@ -309,130 +309,130 @@ class Character(GameObject):
             self.jump_interval = 0
             self.double_jumped = False
             # 吹っ飛び判定更新
-            if abs(self.speed[0])<self.CONST.speed_max:
+            if abs(self.speed.x)<self.CONST.speed_max:
                 self.blowed = False
             # 跳ね
-            if self.speed[1]<0:
-                self.speed[1] = round(abs(self.speed[1])/2)
-                if self.speed[1] != 0:
+            if self.speed.y<0:
+                self.speed.y = round(abs(self.speed.y)/2)
+                if self.speed.y != 0:
                     self.hopping = True
             # 摩擦
-            if self.speed[0]>0:
-                self.speed[0] -= self.CONST.friction
-                if self.speed[0] < self.CONST.friction*2:
-                    self.speed[0]=0
-            elif self.speed[0]<0:
-                self.speed[0] += self.CONST.friction
-                if self.speed[0] > -self.CONST.friction*2:
-                    self.speed[0]=0
+            if self.speed.x>0:
+                self.speed.x -= self.CONST.friction
+                if self.speed.x < self.CONST.friction*2:
+                    self.speed.x=0
+            elif self.speed.x<0:
+                self.speed.x += self.CONST.friction
+                if self.speed.x > -self.CONST.friction*2:
+                    self.speed.x=0
             # 動力
-            if self.Input.direction[0]==1:
+            if self.Input.direction.x==1:
                 # 初速条件 = (水平速度が小さい　もしくは　(跳ねてる　かつ　初速以下))
-                if (abs(self.speed[0]) < self.CONST.start_condition or (self.hopping and self.speed[0]<self.CONST.start_speed)):
-                    self.speed[0] = self.CONST.start_speed
+                if (abs(self.speed.x) < self.CONST.start_condition or (self.hopping and self.speed.x<self.CONST.start_speed)):
+                    self.speed.x = self.CONST.start_speed
                 else:
-                    if self.speed[0]>0:
-                        self.speed[0] += self.CONST.accelarate + self.CONST.friction
+                    if self.speed.x>0:
+                        self.speed.x += self.CONST.accelarate + self.CONST.friction
                     else:
-                        self.speed[0] += self.CONST.accelarate
-                self.speed[0] = min(self.speed[0], self.CONST.speed_max)
-            if self.Input.direction[0]==-1:
-                if (abs(self.speed[0]) < self.CONST.start_condition or (self.hopping and self.speed[0]>-self.CONST.start_speed)):
-                    self.speed[0] = -self.CONST.start_speed
+                        self.speed.x += self.CONST.accelarate
+                self.speed.x = min(self.speed.x, self.CONST.speed_max)
+            if self.Input.direction.x==-1:
+                if (abs(self.speed.x) < self.CONST.start_condition or (self.hopping and self.speed.x>-self.CONST.start_speed)):
+                    self.speed.x = -self.CONST.start_speed
                 else:
-                    if self.speed[0]<0:
-                        self.speed[0] -= self.CONST.accelarate + self.CONST.friction
+                    if self.speed.x<0:
+                        self.speed.x -= self.CONST.accelarate + self.CONST.friction
                     else:
-                        self.speed[0] -= self.CONST.accelarate
-                self.speed[0] = max(self.speed[0], -self.CONST.speed_max)
+                        self.speed.x -= self.CONST.accelarate
+                self.speed.x = max(self.speed.x, -self.CONST.speed_max)
             # ジャンプ
-            if self.direction[1]==1 and self.hopping==False:
+            if self.Input.direction.y==1 and self.hopping==False:
                 self.jump_interval = self.CONST.next_jump_interval
                 if self.restrict_jump:
-                    self.speed[1] = self.CONST.restrict_jump
+                    self.speed.y = self.CONST.restrict_jump
                 else:
                     if self.on_platform:
-                        self.speed[1] = self.CONST.platform_jump
+                        self.speed.y = self.CONST.platform_jump
                     else:
-                        self.speed[1] = self.CONST.normal_jump
+                        self.speed.y = self.CONST.normal_jump
             # ステージからの飛び降り
-            if self.on_platform and self.Input.direction[1]==-1:
-                self.speed[1] += self.CONST.drop_speed
+            if self.on_platform and self.Input.direction.y==-1:
+                self.speed.y += self.CONST.drop_speed
         else:
             if self.jump_interval>0:
                 self.jump_interval -= 1
             # 重力
             if self.after_blow_count>0:
-                self.speed[1] -= 3/2
+                self.speed.y -= 3/2
             elif self.hopping == False:
-                if -1/4 < self.speed[1] <= 0:
-                    self.speed[1] -= 1/8
-                elif -3/4 < self.speed[1] <= -1/4:
-                    self.speed[1] -= 1/4
-                elif -7/4 < self.speed[1] <= -3/4:
-                    self.speed[1] -= 1/2
-                elif -13/4 < self.speed[1] <= -7/4:
-                    self.speed[1] -= 3/4
-                elif -5 < self.speed[1] <= -13/4:
-                    self.speed[1] -= 7/8
-                elif -30 < self.speed[1]:
-                    self.speed[1] -= self.CONST.gravity
+                if -1/4 < self.speed.y <= 0:
+                    self.speed.y -= 1/8
+                elif -3/4 < self.speed.y <= -1/4:
+                    self.speed.y -= 1/4
+                elif -7/4 < self.speed.y <= -3/4:
+                    self.speed.y -= 1/2
+                elif -13/4 < self.speed.y <= -7/4:
+                    self.speed.y -= 3/4
+                elif -5 < self.speed.y <= -13/4:
+                    self.speed.y -= 7/8
+                elif -30 < self.speed.y:
+                    self.speed.y -= self.CONST.gravity
             else:
-                self.speed[1] -= self.CONST.gravity
+                self.speed.y -= self.CONST.gravity
             # 空気抵抗(吹っ飛び時)
             if self.blowed:
                 if self.after_blow_count>0:
                     grip_ratio = self.CONST.grip_weak
-                elif abs(self.speed[0])>self.CONST.speed_max:
+                elif abs(self.speed.x)>self.CONST.speed_max:
                     grip_ratio = self.CONST.grip_strong
                 else:
                     grip_ratio = 0
-                if self.speed[0]>0:
-                    self.speed[0] -= grip_ratio
-                elif self.speed[0]<0:
-                    self.speed[0] += grip_ratio
+                if self.speed.x>0:
+                    self.speed.x -= grip_ratio
+                elif self.speed.x<0:
+                    self.speed.x += grip_ratio
             # 空中ジャンプ
-            if self.Input.direction[1]==1 and not self.double_jumped and self.jump_interval==0 and not self.hopping and not self.restrict_jump:
-                self.speed[1] = self.CONST.air_jump
+            if self.Input.direction.y==1 and not self.double_jumped and self.jump_interval==0 and not self.hopping and not self.restrict_jump:
+                self.speed.y = self.CONST.air_jump
                 self.double_jumped = True
-                self.effects.append(Effect("airjump", (self.x, self.y)))
+                self.effects.append(Effect("airjump", self.pos))
             # 動力(跳ね・吹っ飛び時のみ)
-            jump_height = self.pos[1]-self.radius-stage.GND_HEIGHT
+            jump_height = self.pos.y-self.radius-stage.GND_HEIGHT
             if (self.hopping and jump_height < self.CONST.hopping_height) or self.blowed:
-                if self.Input.direction[0]==1 and self.speed[0]<self.CONST.speed_max:
-                    self.speed[0] += self.CONST.air_power
-                    self.speed[0] = min(self.speed[0], self.CONST.speed_max)
-                elif self.Input.direction[0]==-1 and self.speed[0]>-self.CONST.speed_max:
-                    self.speed[0] -= self.CONST.air_power
-                    self.speed[0] = max(self.speed[0], -self.CONST.speed_max)
+                if self.Input.direction.x==1 and self.speed.x<self.CONST.speed_max:
+                    self.speed.x += self.CONST.air_power
+                    self.speed.x = min(self.speed.x, self.CONST.speed_max)
+                elif self.Input.direction.x==-1 and self.speed.x>-self.CONST.speed_max:
+                    self.speed.x -= self.CONST.air_power
+                    self.speed.x = max(self.speed.x, -self.CONST.speed_max)
 
         # 座標更新
         GameObject.update()
 
         # 座標を調整
-        if self.pos[0] < self.radius:
-            self.x = self.radius
+        if self.pos.x < self.radius:
+            self.pos.x = self.radius
             if self.blowed:
-                self.speed[0] *= -1
-                self.speed[1] += 10
-        elif self.x > stage.WIDTH-self.radius:
-            self.x = stage.WIDTH-self.radius
+                self.speed.x *= -1
+                self.speed.y += 10
+        elif self.pos.x > stage.WIDTH-self.radius:
+            self.pos.x = stage.WIDTH-self.radius
             if self.blowed:
-                self.speed[0] *= -1
-                self.speed[1] += 10
+                self.speed.x *= -1
+                self.speed.y += 10
         # 接地判定
-        if self.pos[1]-self.radius <= stage.GND_HEIGHT:
+        if self.pos.y-self.radius <= stage.GND_HEIGHT:
             self.on_ground = True
             self.on_platform = False
-            self.pos[1] = stage.GND_HEIGHT + self.radius
+            self.pos.y = stage.GND_HEIGHT + self.radius
         else:
             for platform in stage.platforms:
                 foot_pos = self.pos-Vector2(0, self.radius)
                 last_pos = foot_pos-self.speed
-                if (foot_pos in platform or (platform.is_above(last_pos) and platform.is_below(foot_pos))) and self.speed[1]<=0 and not self.Input.direction[1]==-1:
+                if (foot_pos in platform or (platform.is_above(last_pos) and platform.is_below(foot_pos))) and self.speed.y<=0 and not self.Input.direction.y==-1:
                     self.on_ground = True
                     self.on_platform = True
-                    self.pos[1] = platform.y+self.radius
+                    self.pos.y = platform.y+self.radius
                     break
             else:
                 self.on_ground = False
