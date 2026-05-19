@@ -582,8 +582,15 @@ class Shield:
 
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         hit_objects = []
-        if anti_shield and self.pos.distance_to(pos) < self.radius+r and self.status != "wait":
-            hit_objects.append(self)
+        if self.status != "wait":
+            collide_radius = max(self.user.radius, self.radius)       # 判定半径をキャラよりも大きくする
+            if anti_shield and self.pos.distance_to(pos) < collide_radius+r and self.status != "wait":
+                if self.instant_count > 0:
+                    self.user.no_damage_count = 16
+                    self.reset()
+                else:
+                    hit_objects.append(self)
+
         for bullet in self.hitback_bullets:
             hit_objects += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
 
@@ -631,23 +638,24 @@ class Shield:
         self.pos = self.user.pos.copy()
         # 発動前
         if self.status == "start_up":
-            if self.startup_count < self.STARTUP:
-                self.radius += (self.RADIUS_MAX-self.radius)/(self.STARTUP-self.startup_count)
+            if self.startup_count < self.CONST.startup:
                 self.startup_count += 1
+                self.radius = lerp(self.radius_first, self.CONST.radius_max, self.CONST.startup/self.startup_count)
             else:
                 self.status = "guard"
                 self.user.restrict_jump = True
+                self.instant_count = self.CONST.instant_block
         # 発動中
         elif self.status == "guard":
-            self.radius = self.RADIUS_MAX
+            self.radius = self.CONST.radius_max
             self.attack()
-            if self.instant_count < self.INSTANT_BLOCK:
-                self.instant_count += 1
+            if self.instant_count > 0:
+                self.instant_count -= 1
         # 発動後
         elif self.status == "recovery":
-            if self.recovery_count < self.RECOVERY:
+            if self.recovery_count < self.CONST.recovery:
                 self.recovery_count += 1
-                self.radius -= (self.RADIUS_MAX-self.user.radius)/self.RECOVERY
+                self.radius = lerp(self.CONST.radius_max, self.user.radius, self.CONST.startup/self.startup_count)
             else:
                 self.reset()
 
