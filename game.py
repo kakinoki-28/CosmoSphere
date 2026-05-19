@@ -1251,11 +1251,43 @@ class SyncShooter:
 
 
 if __name__ == '__main__':
-    c = Character("red")
-    classes = [ x[1] for x in inspect.getmembers( inspect.getmodule(Character), inspect.isclass)]
-    pack_start = perf_counter()
+    temp = GameState()
+    temp.add_character("red","6dfbf80a")
+    temp.add_character("red","fb977406")
+    temp.add_character("red","255ce79c")
+    temp.add_character("green","d48bfad8")
+    gs_list = [temp for i in range(8)]
 
-    var_dict = vars(c)
-    frame = json.dumps({k: v for k, v in vars(c).items() if not type(v) in classes}, separators=(',', ':')).encode()
-    print(frame)
-    print(len(frame))
+    # ロールバックの処理負荷検討
+    drone_set = InputHandler()
+    drone_set.set_input(direction=Vector2(0,1), skills=[False,True,False], attack=False, shield=False)
+    shoot_set = InputHandler()
+    shoot_set.set_input(direction=Vector2(1,0), skills=[True,False,False], attack=False, shield=False)
+    shoot_release = InputHandler()
+    shoot_release.set_input(direction=Vector2(1,0), skills=[False,False,False], attack=False, shield=False)
+    gs_list[-1].regist_input(drone_set, "6dfbf80a")
+    gs_list[-1].regist_input(shoot_set, "fb977406")
+    for i in range(16):
+        gs_list[-1].update()
+    gs_list[-1].regist_input(shoot_release, "fb977406")
+    for i in range(2):
+        gs_list[-1].update()
+    pack_start = perf_counter()
+    for state in gs_list:
+        state.update()
+
+    time = perf_counter()-pack_start
+    print(f"1F update time:{time*1000:.3g}ms({time*64*100:.3g}%)")
+
+    rollback_num = 8
+    def fast_copy(x):
+        import pickle
+        return pickle.loads(pickle.dumps(x))
+    pack_start = perf_counter()
+    gs_list[(len(gs_list)-rollback_num):]=[fast_copy(gs_list[-1]) for i in range(rollback_num)]
+    for i in range(rollback_num):
+        for j in range(i):
+            gs_list[i+len(gs_list)-rollback_num].update()
+    time = perf_counter()-pack_start
+    print(f"copy & update {rollback_num} state time:{time*1000:.3g}ms({time*64*100:.3g}%)")
+
