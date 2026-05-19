@@ -961,27 +961,24 @@ class EnergyGun:
                     self.reload_count = self.CONST.reload
                     self.shoot_count = 0
 
-# ドローン本体(赤スキル2)
-class Drone:
+
+""" 敵を追尾し衝突すると爆発するドローン(赤スキル2) """
+class Drone(GameObject):
     def __init__(self, user, target):
+        GameObject.__init__( self, user.pos, Vector2(0,0) )
         # 定数
-        self.MAX_TIME = 320
-        self.HOMING_INTERVAL = 4
-        self.STARTUP = 24
-        self.SPEED = 10
-        self.radius = 15
-        self.damage = 15
+        self.CONST = gameconst.DroneConst()
         # 変数
-        self.x = user.x
-        self.y = user.y
-        self.hp = 5
+        self.hp = self.CONST.hp_max
         self.user = user
         self.target = target
-        self.active = False
-        self.wait = True
-        self.time = 0
-        self.startup_count = 0
-        self.homing_count = 0
+        self.active = False         # ドローンを更新するかの判定
+        self.wait = True            # 射出モーション中かの判定（表示を切らない為）
+
+        self.alive_count = 0        # 弾の存在時間のカウント
+        self.startup_count = 0      # 射出直後に直進するフレームのカウント
+        self.homing_count = 0       # 追尾する間隔のカウント
+        self.hitwait_count = 0      # ヒットストップ中のカウント
 
     @property
     def frame(self):
@@ -990,81 +987,78 @@ class Drone:
         else:
             return ""
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
-        if anti_bullet and distance(pos, (self.x, self.y)) < self.radius+r and self.active:
-            self.hp -= damage
-            return [self]
-        else:
-            return []
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
+        for circle in self.CONST.hit_circles:
+            circle_pos = self.pos + circle.rel_pos
+            if anti_bullet and circle_pos.distance_to(pos) < circle.radius+r and self.active:
+                return [self]
+        return []
 
-    def update(self):
+    def damage_process(self, damage):
+        self.hp -= damage
+
+    def update(self, stage:Stage):
         if self.active:
-            if self.startup_count>=self.STARTUP:
+            if self.startup_count>=self.CONST.startup:
                 self.attack()
                 # 追尾
-                if self.homing_count>=self.HOMING_INTERVAL:
+                if self.homing_count>=self.CONST.homing_interval:
                     self.homing_count = 0
                     # 速度変更
-                    e = unit_vector(self.target.x-self.x, self.target.y-self.y)
-                    self.speed_x = 7/8*self.speed_x + e[0]
-                    self.speed_y = 7/8*self.speed_y + e[1]
-                    length = math.sqrt(self.speed_x**2+self.speed_y**2)
+                    self.speed = (self.CONST.speed_max-1)/self.CONST.speed_max*self.speed + (self.target.pos-self.pos).normalize()
+
                     # 速度制限
-                    if length>self.SPEED:
-                        self.speed_x *= self.SPEED/length
-                        self.speed_y *= self.SPEED/length
+                    if self.speed.length() > self.CONST.speed_max:
+                        self.speed.scale_to_length(self.CONST.speed)
                 else:
                     self.homing_count += 1
             else:
                 self.startup_count +=1
-            # 移動
-            self.x += self.speed_x
-            self.y += self.speed_y
 
-            self.time += 1
+            GameObject.update(self)
+            self.alive_count += 1
+
             # 消滅条件
-            if self.hp<0 or self.time>self.MAX_TIME:
+            if self.hp<0 or self.alive_count>self.CONST.alive_frame:
                 self.active = False
 
     def attack(self):
-        #ターゲット探索
-        for enemy in self.user.target_list:
-            # 相手のオブジェクトと衝突判定
-            for target in enemy.hit_check((self.x,self.y), self.radius, self.damage, anti_bullet=True):
-                # キャラに当たった
-                if type(target) == Character:
-                    # 無敵処理
-                    target.no_damage_count = 24
-                    # ヒットストップ処理
-                    target.set_stop(8, 5)
-                self.active = False
+        for circle in self.CONST.hit_circles:
+            pos = self.pos + circle.rel_pos
+            for enemy in self.user.target_list:
+                for target in enemy.hit_check(pos, circle.radius, anti_bullet=True):
+                    # ダメージ処理
+                    target.damage_process(circle.damage)
+                    # キャラに当たった
+                    if type(target) == Character:
+                        # 無敵処理
+                        target.no_damage_count = self.CONST.no_damage_frame
+                        # ヒットストップ処理
+                        target.set_stop( self.CONST.hit_stop, self.CONST.shake)
+                        self.hitwait_count = int(self.CONST.hit_stop/2)
+                    self.active = False
 
     def shoot(self, angle_range):
         self.active = True
         self.wait = False
-        angle = slope_angle(self.target.x-self.x, self.target.y-self.y) + random.randint(-angle_range,angle_range)
-        self.speed_x = self.SPEED*math.sin(math.radians(angle))
-        self.speed_y = self.SPEED*math.cos(math.radians(angle))
+        angle = angle_between(self.target.pos-self.pos, Vector2(0,1)) + randint(-angle_range,angle_range)
+        self.speed = self.CONST.speed_max*Vector2(0, 1).rotate(-angle)
 
-# ドローン管理(赤スキル2)
+
+""" ドローン(赤スキル2)の投擲・射出を管理するクラス """
 class DroneManager:
     def __init__(self, user):
-        # 定数
-        self.RELOAD = 320   # Frame
-        self.BULLET_MAX = 4
-        self.THROW_TIME = 24
-        self.INTERVAL = 24
-        self.ANGLE_RANGE = 20
-
+        self.CONST = gameconst.DroneManagerConst
         # 変数
         self.status = "wait"
         self.user = user
-        self.mag = []
-        self.angle = 0
+        self.magazine = []
+        self.throwing_drone = None      # 投擲中のドローン
 
-        self.throw_count = 0
-        self.interval_count = 0
-        self.reload_count = 0
+        self.throw_count = 0            # 投擲の経過時間カウント
+        self.interval_count = 0         # ドローン射出の間隔のカウント
+        self.shoot_count = 0            # ドローン射出数カウント
+        self.reload_count = 0           # ドローンの再装填カウント
 
     @property
     def frame(self):
@@ -1077,40 +1071,42 @@ class DroneManager:
 
         return frame
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         drone_list = []
-        for drone in self.mag:
-            drone_list += drone.hit_check(pos, r, damage, anti_bullet=anti_bullet)
+        for drone in self.magazine:
+            drone_list += drone.hit_check(pos, r, anti_bullet=anti_bullet)
         return drone_list
 
-    def update(self):
+    def damage_process(self, damage):
+        for drone in self.magazine:
+            drone.damage_process(damage)
+
+    def update(self, stage:Stage):
         if self.reload_count>0:
             self.reload_count -= 1
             if self.reload_count==0:
-                self.mag.clear()
+                self.magazine.clear()
         # 投擲
         if self.status == "throw":
             # 投擲表現
-            #target_angle = slope_angle(self.mag[-1].target.x-self.user.x, self.mag[-1].y-self.user.y)
-            self.angle = gap_angle(self.angle, 270/self.THROW_TIME)
-            self.mag[-1].x = self.user.x + self.user.radius*math.sin(math.radians(self.angle))
-            self.mag[-1].y = self.user.y + self.user.radius*math.cos(math.radians(self.angle))
-
+            self.throwing_drone.pos.rotate_ip(270/self.CONST.throw_time)
             self.throw_count += 1
+
             # 投げ終わりで射出
-            if self.throw_count >= self.THROW_TIME:
+            if self.throw_count >= self.CONST.throw_time:
                 self.throw_count = 0
-                self.mag[-1].shoot(self.ANGLE_RANGE)
+                self.throwing_drone.shoot(self.CONST.angle_range)
+                self.throwing_drone = None
                 self.status = "wait"
                 self.user.action_busy = False
-                self.interval_count = self.INTERVAL
-                if len(self.mag)==self.BULLET_MAX:
-                    self.reload_count = self.RELOAD
+                self.interval_count = self.CONST.interval
+                if self.shoot_count==self.CONST.drone_max:
+                    self.reload_count = self.CONST.reload
         elif self.interval_count>0:
             self.interval_count -= 1
 
-        for each in self.mag:
-            each.update()
+        for drone in self.magazine:
+            drone.update(stage)
 
     def throw_start(self):
         if self.reload_count==0 and self.status == "wait" and self.interval_count==0:
@@ -1119,10 +1115,14 @@ class DroneManager:
             target = closest(self.user, self.user.target_list)
             if target==None:
                 target=self.user
-            self.mag.append(Drone(user=self.user, target=target))
+            self.throwing_drone = Drone(user=self.user, target=target)
+            self.magazine.append(self.throwing_drone)
             self.user.action_busy = True
-            target_angle = slope_angle(target.x-self.user.x, target.y-self.user.y)
-            self.angle = target_angle
+            if (target.pos-self.user.pos).length()!=0:
+                self.throwing_drone.pos = (target.pos-self.user.pos).normalize()*self.user.radius
+            else:
+                self.throwing_drone.pos = Vector2(1,0)*self.user.radius
+
 
 # 時止め弾(赤スキル３)
 class SynchroBullet(Bullet):
