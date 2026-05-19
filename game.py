@@ -1124,95 +1124,83 @@ class DroneManager:
                 self.throwing_drone.pos = Vector2(1,0)*self.user.radius
 
 
-# 時止め弾(赤スキル３)
-class SynchroBullet(Bullet):
-    def __init__(self, user, speed, angle, damage):
-        super().__init__("sync_bullet", user,speed, angle,damage)
-        self.MAX_TIME = 60
-        self.COMBO_INTERVAL = 8
+""" 時止め弾：複数の直進弾を空中に設置し、最後に全ての弾を同時に発射する(赤スキル3) """
+class SyncBullet(LinerBullet):
+    def __init__(self, user:Character, speed:Vector2, const:gameconst.SyncBulletConst):
+        LinerBullet.__init__(self, "sync_bullet", user,speed,const)
         self.active = False
-        self.wait = True
-        self.speed = speed
+        self.shoot_wait = True
 
     def shoot(self, target):
         self.active = True
-        self.wait = False
-        self.angle = slope_angle(target.x-self.x, target.y-self.y)
-        self.speed_x = self.speed*math.sin(math.radians(self.angle))
-        self.speed_y = self.speed*math.cos(math.radians(self.angle))
+        self.shoot_wait = False
+        self.speed = (target.pos-self.pos).normalize()*self.speed.length()
 
-    def update(self):
-        super().update()
-        if self.wait:
+    def update(self, stage:Stage):
+        LinerBullet.update(self, stage)
+        if self.shoot_wait:
             self.display = True
 
-# 時止め射撃(赤スキル３)
-class SynchroShot:
+
+""" 時止め弾（赤スキル3) の設置・同時発射を管理するクラス"""
+class SyncShooter:
     def __init__(self, user):
-        # 定数
-        self.RELOAD = 320
-
-        self.BULLET_MAX = 5
-        self.BULLET_SPEED = 24
-        self.BULLET_DAMAGE = 20
-
         # 変数
         self.user = user
         self.target = None
-        self.mag = []
+        self.magazine = []
 
-        self.shoot_count = 0
-        self.reload_count = 0
+        self.shoot_count = 0        # 設置回数のカウント
+        self.reload_count = 0       # 再装填の時間カウント
 
     @property
     def frame(self):
         frame = "syncshot,"+ str(self.shoot_count) +","+ str(self.BULLET_MAX)  +","
         frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
         # 弾の表示
-        for bullet in self.mag:
+        for bullet in self.magazine:
             frame += bullet.frame
         return frame
 
     # くらい処理
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         bullet_list = []
-        for bullet in self.mag:
-            bullet_list += bullet.hit_check(pos, r, damage, anti_bullet=anti_bullet)
-        # ダメージ0のヒットチェックは反射=所有権の移行
-        if damage==0:
-            for bullet in bullet_list:
-                self.mag.remove(bullet)
+        for bullet in self.magazine:
+            bullet_list += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
         return bullet_list
 
-    def reset(self):
-        self.mag.clear()
-        self.shoot_count = 0
+    def damage_process(self, damage):
+        for bullet in self.magazine:
+            bullet.damage_process(self, damage)
+
+    def remove_bullet(self, bullet):
+        self.magazine.remove(bullet)
 
     # 入力
     def shoot(self):
         if self.reload_count==0:
-            # 弾を仕掛ける
-            if self.shoot_count < self.BULLET_MAX:
-                self.mag.append(SynchroBullet(user=self.user, speed=self.BULLET_SPEED, angle=0, damage=self.BULLET_DAMAGE))
+            # 弾を設置
+            if self.shoot_count < self.CONST.bullet_max:
+                self.magazine.append(SyncBullet(user=self.user, speed=Vector2(1,0)*self.CONST.bullet_speed, CONST=gameconst.SyncBulletConst()))
                 self.shoot_count+=1
             # 射撃
             else:
                 target = closest(self.user, self.user.target_list)
                 if target == None:
                     target = self.user
-                for bullet in self.mag:
+                for bullet in self.magazine:
                     bullet.shoot(target)
-                self.reload_count = self.RELOAD
+                self.reload_count = self.CONST.reload
 
     # 更新処理
-    def update(self):
+    def update(self, stage:Stage):
         if self.reload_count>0:
             self.reload_count -= 1
             if self.reload_count == 0:
-                self.reset()
-        for bullet in self.mag:
-            bullet.update()
-
+                self.magazine.clear()
+                self.shoot_count = 0
+        for bullet in self.magazine:
+            bullet.update(stage)
 # ユーティリティ関数
 def distance(a,b):
     return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
