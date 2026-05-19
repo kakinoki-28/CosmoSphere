@@ -120,7 +120,6 @@ class GameState:
 
 """ ゲームステージ全体の情報の管理するクラス """
 class Stage:
-    """ ステージ全体の情報の管理 """
     WIDTH = 1280
     HEIGHT = 720
     GND_HEIGHT = 100
@@ -132,7 +131,6 @@ class Stage:
         self.platforms.append( Platform(self.WIDTH*1/4-210/2-15, self.WIDTH*1/4+210/2-15, self.GND_HEIGHT+120) )
         self.platforms.append( Platform(self.WIDTH*2/4-210/2,    self.WIDTH*2/4-210/2,    self.GND_HEIGHT+210) )
         self.platforms.append( Platform(self.WIDTH*3/4-210/2+15, self.WIDTH*3/4+210/2+15, self.GND_HEIGHT+120) )
-
 
     def update(self):
         pass
@@ -157,7 +155,6 @@ class Platform:
     def is_below(self, item:Vector2):
         return (self.x[0]-self.EDGE_WIDTH <= item[0] <= self.x[1]+self.EDGE_WIDTH and item[1] <= self.y-self.THICK)
 
-
 class GameObject:
     def __init__(self, pos:Vector2, speed:Vector2):
         self.pos = pos.copy()
@@ -165,7 +162,6 @@ class GameObject:
 
     def update(self):
         self.pos += self.speed
-
 
 class Character(GameObject):
     def __init__(self, color, my_id="", input=InputHandler()):
@@ -177,21 +173,21 @@ class Character(GameObject):
         self.id = my_id
         GameObject.__init__( self, Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius), Vector2(0,0) )
 
-        self.on_platform = False
-        self.on_ground = True
+        self.on_ground = True       # 接地判定（台上もTrue）
+        self.on_platform = False    # 台上の判定
         self.hopping = False        # 跳ね返り
-        self.double_jumped = False
-        self.restrict_jump = False
-        self.jump_interval = 0      # 2段ジャンプまでの間隔
+        self.double_jumped = False  # ダブルジャンプを行った後かの判定
+        self.restrict_jump = False  # (ガード時など)高さ制限のある判定
+        self.jump_interval = 0      # 2段ジャンプまでの間隔カウント
 
         self.hp = self.CONST.hp_max
-        self.combo = 0
+        self.combo = 0              # コンボ(ダメージ軽減)の回数
         self.combo_count = 0        # コンボ継続時間
         self.no_damage_count = 0    # 無敵継続時間
         self.blowed = False         # 吹っ飛ばされ判定
-        self.after_blow_count = 0   # 吹っ飛び直後の特殊動作のカウント
-        self.target_list = []
-        self.action_busy = False
+        self.after_blow_count = 0   # 吹っ飛び直後の特殊動作(空気抵抗減少)のカウント
+        self.target_list = []       # 攻撃が狙える相手のリスト
+        self.action_busy = False    # 動作が占有されているかどうか
 
         self.stop_frame = 0     # ヒットストップする時間を保存
         self.stop_count = 0     # ヒットストップをカウント
@@ -250,7 +246,7 @@ class Character(GameObject):
         elif self.motion == "airjump":
             return "2"
 
-    """ 入力の処理 """
+    """ 入力(InputHandler)が更新される処理 """
     def input_update(self, new_input:InputHandler):
 
         #近接攻撃 KeyDown
@@ -474,6 +470,7 @@ class Character(GameObject):
                 self.on_ground = False
                 self.on_platform = False
 
+    """ Character傘下にいるオブジェクトの更新を行う """
     def objects_update(self, stage:Stage):
         self.shield.update()
         if self.color == "red":
@@ -495,7 +492,6 @@ class Character(GameObject):
             hit_objects += self.drone.hit_check(pos, r, anti_bullet=anti_bullet, anti_shield=anti_shield)
             hit_objects += self.sync_shot.hit_check(pos, r, anti_bullet=anti_bullet, anti_shield=anti_shield)
         return hit_objects
-
 
     """ ダメージとコンボの処理を行う """
     def damage_process(self, damage:int):
@@ -901,10 +897,10 @@ class EnergyGun:
         self.magazine = []
         self.shoot_count = 0        # 弾が発射された数
 
-        self.startup_count = 0
-        self.charge_count = 0
-        self.interval_count = 0
-        self.reload_count = 0
+        self.startup_count = 0      # 弾が発射できるまでのカウント
+        self.charge_count = 0       # チャージのフレームカウント
+        self.interval_count = 0     # 弾が出る間隔のカウント
+        self.reload_count = 0       # 装填までのカウントダウン
 
         self.angle = 0
         self.angle_range = self.CONST.angle_range_max
