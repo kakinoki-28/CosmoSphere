@@ -22,64 +22,40 @@ class GameManeger:
     FRAME_LATENCY = 1/FPS
 
     def __init__(self):
-        self.init_game()
-
-    """ 初期化 """
-    def init_game(self):
         self.run = True
-        def pass_func(frame):
+        def dummy(frame):
             pass
-        self.update_func = pass_func
-        self.frame_rate = 0
+        self.update_func = dummy    # ゲームが更新される際に呼び出される関数(通信等)
+        self.frame_rate = 0         # フレームレートの保存
 
-        self.stage = Stage()
-        self.characters = []
-        self.available_color = ["red", "green"]
+        self.available_color = ["red", "green"] # 利用可能なキャラの色
+        self.state = GameState()
 
+    """ ゲームの初期化 """
+    def init_game(self):
+        self.state.init_game()
 
     """ キャラの追加 """
-    def add_character(self, color):
-        character = Character(color=color)
-        self.characters.append(character)
-        for chara in self.characters:
-            chara.target_list = [_ for _ in self.characters if _ != chara]
-
-        return character
+    def add_character(self, color, id):
+        if color in self.available_color:
+            return self.state.add_character(color, id)
+        else:
+            raise ValueError(f"{color} is not available color")
 
     """ キャラの削除 """
     def remove_character(self, character):
-        self.characters.remove(character)
-        for chara in self.characters:
-            chara.target_list = [_ for _ in self.characters if _ != chara]
-
-    """ フレームを更新して生成 """
-    def update_frame(self):
-        frame = ""
-        self.stage.update()
-        #frame += self.stage.frame
-        # リスト順による判定の優先順位を排除するためキャラ情報を優先して更新
-        for chara in self.characters:
-            chara.update(self.stage)
-        for chara in self.characters:
-            chara.objects_update(self.stage)
-            frame += chara.frame
-        return frame.encode()
-
+        self.state.remove_character(character)
 
     """ ゲームのメイン処理 """
     def mainloop(self):
-        # タイマーの精度向上
-        windll.winmm.timeBeginPeriod(1)
-        frame_time = [perf_counter()]*2
+        windll.winmm.timeBeginPeriod(1)     # タイマーの精度向上
+        frame_time = [perf_counter()]*2     # フレームレートの観測用リスト
         delay = 0
         while self.run:
             start = perf_counter()
 
-            # フレームupdate
-            frame = self.update_frame()
-
-            # フレーム毎実行処理
-            self.update_func(frame)
+            frame = self.state.update()     # ゲーム状況を更新
+            self.update_func(frame)         # フレーム毎実行処理
 
             # フレーム計測
             frame_time[1] = perf_counter()
@@ -94,6 +70,55 @@ class GameManeger:
                 pass
         windll.winmm.timeEndPeriod(1)
 
+""" ゲーム状況が再現可能な情報を保存するクラス
+    入力などの情報を付加しながらゲーム状況を進めることもできる """
+class GameState:
+    """ 初期化 """
+    def __init__(self):
+        self.stage = Stage()
+        self.characters_list = []
+        self.init_game()
+
+    def init_game(self):
+        self.frame_number = 0
+
+    """ キャラの追加 """
+    def add_character(self, color, id):
+        character = Character(color=color, my_id=id)
+        self.characters_list.append(character)
+        # 各キャラクターのターゲットを更新
+        for character in self.characters_list:
+            character.target_list = [_ for _ in self.characters_list if _ != character]
+        return character
+
+    """ キャラの削除 """
+    def remove_character(self, id):
+        for character in [_ for _ in self.characters_list if _.id == id]:
+            self.characters_list.remove(character)
+        # 各キャラクターのターゲットを更新
+        for chara in self.characters:
+            chara.target_list = [_ for _ in self.characters if _ != chara]
+
+    """ 入力の登録(不可逆的な変更) """
+    def regist_input(self, new_input:InputHandler, id):
+        for character in [_ for _ in self.characters_list if _.id == id]:
+            character.input_update(new_input)
+
+    """ ゲーム状況を更新してフレームを生成 """
+    def update(self):
+        self.frame_number += 1
+        frame = ""
+        self.stage.update()
+        #frame += self.stage.frame
+        # リスト順による判定の優先順位を排除するためキャラ情報を優先して更新
+        for character in self.characters_list:
+            character.update(self.stage)
+        for character in self.characters_list:
+            character.objects_update(self.stage)
+            #frame += character.frame
+        return frame.encode()
+
+""" ゲームステージ全体の情報の管理するクラス """
 class Stage:
     """ ステージ全体の情報の管理 """
     WIDTH = 1280
