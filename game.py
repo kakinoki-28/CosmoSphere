@@ -2,73 +2,61 @@ from pygame.math import lerp, Vector2
 from ctypes import windll
 from time import perf_counter, sleep
 from input import InputHandler
+from random import randint
 import gameconst
 
 
+# ユーティリティ関数
+def closest(user, obj_list):
+    if obj_list is None or len(obj_list)==0:
+        return None
+    distance_list = [user.pos.distance_to(obj.pos) for obj in obj_list]
+    return obj_list[distance_list.index(min(distance_list))]
+
+def angle_between(a:Vector2, b:Vector2):
+    return -(a.rotate(-90).angle_to(b.rotate(-90)))
+
+
+""" ゲーム進行全体の管理 """
 class GameManeger:
-    """ ゲーム進行全体の管理 """
     FPS = 64
     FRAME_LATENCY = 1/FPS
 
     def __init__(self):
-        self.init_game()
-
-    """ 初期化 """
-    def init_game(self):
         self.run = True
-        def pass_func(frame):
+        def dummy(frame):
             pass
-        self.update_func = pass_func
-        self.frame_rate = 0
+        self.update_func = dummy    # ゲームが更新される際に呼び出される関数(通信等)
+        self.frame_rate = 0         # フレームレートの保存
 
-        self.stage = Stage()
-        self.characters = []
-        self.available_color = ["red", "green"]
+        self.available_color = ["red", "green"] # 利用可能なキャラの色
+        self.state = GameState()
 
+    """ ゲームの初期化 """
+    def init_game(self):
+        self.state.init_game()
 
     """ キャラの追加 """
-    def add_character(self, color):
-        character = Character(color=color)
-        self.characters.append(character)
-        for chara in self.characters:
-            chara.target_list = [_ for _ in self.characters if _ != chara]
-
-        return character
+    def add_character(self, color, id):
+        if color in self.available_color:
+            return self.state.add_character(color, id)
+        else:
+            raise ValueError(f"{color} is not available color")
 
     """ キャラの削除 """
     def remove_character(self, character):
-        self.characters.remove(character)
-        for chara in self.characters:
-            chara.target_list = [_ for _ in self.characters if _ != chara]
-
-    """ フレームを更新して生成 """
-    def update_frame(self):
-        frame = ""
-        self.stage.update()
-        #frame += self.stage.frame
-        # リスト順による判定の優先順位を排除するためキャラ情報を優先して更新
-        for chara in self.characters:
-            chara.update(self.stage)
-        for chara in self.characters:
-            chara.objects_update(self.stage)
-            frame += chara.frame
-        return frame.encode()
-
+        self.state.remove_character(character)
 
     """ ゲームのメイン処理 """
     def mainloop(self):
-        # タイマーの精度向上
-        windll.winmm.timeBeginPeriod(1)
-        frame_time = [perf_counter()]*2
+        windll.winmm.timeBeginPeriod(1)     # タイマーの精度向上
+        frame_time = [perf_counter()]*2     # フレームレートの観測用リスト
         delay = 0
         while self.run:
             start = perf_counter()
 
-            # フレームupdate
-            frame = self.update_frame()
-
-            # フレーム毎実行処理
-            self.update_func(frame)
+            frame = self.state.update()     # ゲーム状況を更新
+            self.update_func(frame)         # フレーム毎実行処理
 
             # フレーム計測
             frame_time[1] = perf_counter()
@@ -83,8 +71,56 @@ class GameManeger:
                 pass
         windll.winmm.timeEndPeriod(1)
 
+""" ゲーム状況が再現可能な情報を保存するクラス
+    入力などの情報を付加しながらゲーム状況を進めることもできる """
+class GameState:
+    """ 初期化 """
+    def __init__(self):
+        self.stage = Stage()
+        self.characters_list = []
+        self.init_game()
+
+    def init_game(self):
+        self.frame_number = 0
+
+    """ キャラの追加 """
+    def add_character(self, color, id):
+        character = Character(color=color, my_id=id)
+        self.characters_list.append(character)
+        # 各キャラクターのターゲットを更新
+        for character in self.characters_list:
+            character.target_list = [_ for _ in self.characters_list if _ != character]
+        return character
+
+    """ キャラの削除 """
+    def remove_character(self, id):
+        for character in [_ for _ in self.characters_list if _.id == id]:
+            self.characters_list.remove(character)
+        # 各キャラクターのターゲットを更新
+        for chara in self.characters:
+            chara.target_list = [_ for _ in self.characters if _ != chara]
+
+    """ 入力の登録(不可逆的な変更) """
+    def regist_input(self, new_input:InputHandler, id):
+        for character in [_ for _ in self.characters_list if _.id == id]:
+            character.input_update(new_input)
+
+    """ ゲーム状況を更新してフレームを生成 """
+    def update(self):
+        self.frame_number += 1
+        frame = ""
+        self.stage.update()
+        #frame += self.stage.frame
+        # リスト順による判定の優先順位を排除するためキャラ情報を優先して更新
+        for character in self.characters_list:
+            character.update(self.stage)
+        for character in self.characters_list:
+            character.objects_update(self.stage)
+            #frame += character.frame
+        return frame.encode()
+
+""" ゲームステージ全体の情報の管理するクラス """
 class Stage:
-    """ ステージ全体の情報の管理 """
     WIDTH = 1280
     HEIGHT = 720
     GND_HEIGHT = 100
@@ -96,7 +132,6 @@ class Stage:
         self.platforms.append( Platform(self.WIDTH*1/4-210/2-15, self.WIDTH*1/4+210/2-15, self.GND_HEIGHT+120) )
         self.platforms.append( Platform(self.WIDTH*2/4-210/2,    self.WIDTH*2/4-210/2,    self.GND_HEIGHT+210) )
         self.platforms.append( Platform(self.WIDTH*3/4-210/2+15, self.WIDTH*3/4+210/2+15, self.GND_HEIGHT+120) )
-
 
     def update(self):
         pass
@@ -121,41 +156,39 @@ class Platform:
     def is_below(self, item:Vector2):
         return (self.x[0]-self.EDGE_WIDTH <= item[0] <= self.x[1]+self.EDGE_WIDTH and item[1] <= self.y-self.THICK)
 
-
 class GameObject:
     def __init__(self, pos:Vector2, speed:Vector2):
-        self.pos = pos
-        self.speed = speed
+        self.pos = pos.copy()
+        self.speed = speed.copy()
 
     def update(self):
         self.pos += self.speed
 
-
 class Character(GameObject):
     def __init__(self, color, my_id="", input=InputHandler()):
-        GameObject.__init__( Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius), Vector2(0,0) )
         self.CONST = gameconst.CharacterConst()
 
         self.color = color
         self.radius = self.CONST.radius
 
         self.id = my_id
+        GameObject.__init__( self, Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius), Vector2(0,0) )
 
-        self.on_platform = False
-        self.on_ground = True
+        self.on_ground = True       # 接地判定（台上もTrue）
+        self.on_platform = False    # 台上の判定
         self.hopping = False        # 跳ね返り
-        self.double_jumped = False
-        self.restrict_jump = False
-        self.jump_interval = 0      # 2段ジャンプまでの間隔
+        self.double_jumped = False  # ダブルジャンプを行った後かの判定
+        self.restrict_jump = False  # (ガード時など)高さ制限のある判定
+        self.jump_interval = 0      # 2段ジャンプまでの間隔カウント
 
         self.hp = self.CONST.hp_max
-        self.combo = 0
+        self.combo = 0              # コンボ(ダメージ軽減)の回数
         self.combo_count = 0        # コンボ継続時間
         self.no_damage_count = 0    # 無敵継続時間
         self.blowed = False         # 吹っ飛ばされ判定
-        self.after_blow_count = 0   # 吹っ飛び直後の特殊動作のカウント
-        self.target_list = []
-        self.action_busy = False
+        self.after_blow_count = 0   # 吹っ飛び直後の特殊動作(空気抵抗減少)のカウント
+        self.target_list = []       # 攻撃が狙える相手のリスト
+        self.action_busy = False    # 動作が占有されているかどうか
 
         self.stop_frame = 0     # ヒットストップする時間を保存
         self.stop_count = 0     # ヒットストップをカウント
@@ -173,7 +206,7 @@ class Character(GameObject):
             # 射撃
             self.energy_gun = EnergyGun(user=self)
             self.drone = DroneManager(user=self)
-            self.sync_shot = SynchroShot(user=self)
+            self.sync_shot = SyncShooter(user=self)
             # ハンマー攻撃
             self.hammer = Hammer(user=self)
 
@@ -182,15 +215,15 @@ class Character(GameObject):
         # ヒットストップ時の振動
         if self.stop_frame != 0:
             shake = int(self.shake_ratio*self.stop_count/self.stop_frame)+1
-            self.shake_x = int( ((-1)**int((self.stop_count%4-1)/2) )*(random.randint(0,int(shake/2))+int(shake/2)))
-            self.shake_y = int( ((-1)**int((self.stop_count%4-1)/2) )*(random.randint(0,int(shake/2))+int(shake/2)))
+            self.shake_x = int( ( (-1)**int((self.stop_count%4-1)/2) )*(randint(0,int(shake/2))+int(shake/2)))
+            self.shake_y = int( ( (-1)**randint(0,1) )*(randint(0,int(shake/2))+int(shake/2)))
             if self.on_ground:
                 self.shake_y = 0
         else:
             self.shake_x = self.shake_y = 0
 
         frame = "player,"+ self.color +"," + str(self.hp) +"," + str(self.HP_MAX) +","
-        frame += str(round(self.pos[0])+self.shake_x)+","+str(round(self.pos[1])+self.shake_y)+","
+        frame += str(round(self.pos.x)+self.shake_x)+","+str(round(self.pos.y)+self.shake_y)+","
         frame += self.motion_id +","+ str(self.motion_count) +","
         frame += str(self.combo_count) +","+ str(self.no_damage_count) + "\n"
 
@@ -214,7 +247,7 @@ class Character(GameObject):
         elif self.motion == "airjump":
             return "2"
 
-    """ 入力の処理 """
+    """ 入力(InputHandler)が更新される処理 """
     def input_update(self, new_input:InputHandler):
 
         #近接攻撃 KeyDown
@@ -233,28 +266,28 @@ class Character(GameObject):
             self.shield.shield_stop()
 
         #スキル1 KeyDown
-        if (new_input.skill[0]==True and self.Input.skill[0]==False):
+        if (new_input.skills[0]==True and self.Input.skills[0]==False):
             if self.color =="red" and not self.action_busy:
                 self.energy_gun.lockon()
         #スキル1 KeyUp
-        if (self.Input.skill[0]==True and new_input.skill[0]==False):
+        if (self.Input.skills[0]==True and new_input.skills[0]==False):
             if self.color =="red":
                 self.energy_gun.shoot()
 
         #スキル2 KeyDown
-        if (new_input.skill[1]==True and self.Input.skill[1]==False):
+        if (new_input.skills[1]==True and self.Input.skills[1]==False):
             if self.color =="red" and not self.action_busy:
                 self.drone.throw_start()
         #スキル2 KeyUp
-        if (self.Input.skill[1]==True and new_input.skill[1]==False):
+        if (self.Input.skills[1]==True and new_input.skills[1]==False):
             pass
 
         #スキル3 KeyDown
-        if (new_input.skill[2]==True and self.Input.skill[2]==False):
+        if (new_input.skills[2]==True and self.Input.skills[2]==False):
             if self.color =="red" and (self.sync_shot.shoot_count==self.sync_shot.BULLET_MAX or not self.action_busy):
                 self.sync_shot.shoot()
         #スキル2 KeyUp
-        if (self.Input.skill[2]==True and new_input.skill[2]==False):
+        if (self.Input.skills[2]==True and new_input.skills[2]==False):
             pass
 
         self.Input = new_input
@@ -309,135 +342,136 @@ class Character(GameObject):
             self.jump_interval = 0
             self.double_jumped = False
             # 吹っ飛び判定更新
-            if abs(self.speed[0])<self.CONST.speed_max:
+            if abs(self.speed.x)<self.CONST.speed_max:
                 self.blowed = False
             # 跳ね
-            if self.speed[1]<0:
-                self.speed[1] = round(abs(self.speed[1])/2)
-                if self.speed[1] != 0:
+            if self.speed.y<0:
+                self.speed.y = round(abs(self.speed.y)/2)
+                if self.speed.y != 0:
                     self.hopping = True
             # 摩擦
-            if self.speed[0]>0:
-                self.speed[0] -= self.CONST.friction
-                if self.speed[0] < self.CONST.friction*2:
-                    self.speed[0]=0
-            elif self.speed[0]<0:
-                self.speed[0] += self.CONST.friction
-                if self.speed[0] > -self.CONST.friction*2:
-                    self.speed[0]=0
+            if self.speed.x>0:
+                self.speed.x -= self.CONST.friction
+                if self.speed.x < self.CONST.friction*2:
+                    self.speed.x=0
+            elif self.speed.x<0:
+                self.speed.x += self.CONST.friction
+                if self.speed.x > -self.CONST.friction*2:
+                    self.speed.x=0
             # 動力
-            if self.Input.direction[0]==1:
+            if self.Input.direction.x==1:
                 # 初速条件 = (水平速度が小さい　もしくは　(跳ねてる　かつ　初速以下))
-                if (abs(self.speed[0]) < self.CONST.start_condition or (self.hopping and self.speed[0]<self.CONST.start_speed)):
-                    self.speed[0] = self.CONST.start_speed
+                if (abs(self.speed.x) < self.CONST.start_condition or (self.hopping and self.speed.x<self.CONST.start_speed)):
+                    self.speed.x = self.CONST.start_speed
                 else:
-                    if self.speed[0]>0:
-                        self.speed[0] += self.CONST.accelarate + self.CONST.friction
+                    if self.speed.x>0:
+                        self.speed.x += self.CONST.accelarate + self.CONST.friction
                     else:
-                        self.speed[0] += self.CONST.accelarate
-                self.speed[0] = min(self.speed[0], self.CONST.speed_max)
-            if self.Input.direction[0]==-1:
-                if (abs(self.speed[0]) < self.CONST.start_condition or (self.hopping and self.speed[0]>-self.CONST.start_speed)):
-                    self.speed[0] = -self.CONST.start_speed
+                        self.speed.x += self.CONST.accelarate
+                self.speed.x = min(self.speed.x, self.CONST.speed_max)
+            if self.Input.direction.x==-1:
+                if (abs(self.speed.x) < self.CONST.start_condition or (self.hopping and self.speed.x>-self.CONST.start_speed)):
+                    self.speed.x = -self.CONST.start_speed
                 else:
-                    if self.speed[0]<0:
-                        self.speed[0] -= self.CONST.accelarate + self.CONST.friction
+                    if self.speed.x<0:
+                        self.speed.x -= self.CONST.accelarate + self.CONST.friction
                     else:
-                        self.speed[0] -= self.CONST.accelarate
-                self.speed[0] = max(self.speed[0], -self.CONST.speed_max)
+                        self.speed.x -= self.CONST.accelarate
+                self.speed.x = max(self.speed.x, -self.CONST.speed_max)
             # ジャンプ
-            if self.direction[1]==1 and self.hopping==False:
+            if self.Input.direction.y==1 and self.hopping==False:
                 self.jump_interval = self.CONST.next_jump_interval
                 if self.restrict_jump:
-                    self.speed[1] = self.CONST.restrict_jump
+                    self.speed.y = self.CONST.restrict_jump
                 else:
                     if self.on_platform:
-                        self.speed[1] = self.CONST.platform_jump
+                        self.speed.y = self.CONST.platform_jump
                     else:
-                        self.speed[1] = self.CONST.normal_jump
+                        self.speed.y = self.CONST.normal_jump
             # ステージからの飛び降り
-            if self.on_platform and self.Input.direction[1]==-1:
-                self.speed[1] += self.CONST.drop_speed
+            if self.on_platform and self.Input.direction.y==-1:
+                self.speed.y += self.CONST.drop_speed
         else:
             if self.jump_interval>0:
                 self.jump_interval -= 1
             # 重力
             if self.after_blow_count>0:
-                self.speed[1] -= 3/2
+                self.speed.y -= 3/2
             elif self.hopping == False:
-                if -1/4 < self.speed[1] <= 0:
-                    self.speed[1] -= 1/8
-                elif -3/4 < self.speed[1] <= -1/4:
-                    self.speed[1] -= 1/4
-                elif -7/4 < self.speed[1] <= -3/4:
-                    self.speed[1] -= 1/2
-                elif -13/4 < self.speed[1] <= -7/4:
-                    self.speed[1] -= 3/4
-                elif -5 < self.speed[1] <= -13/4:
-                    self.speed[1] -= 7/8
-                elif -30 < self.speed[1]:
-                    self.speed[1] -= self.CONST.gravity
+                if -1/4 < self.speed.y <= 0:
+                    self.speed.y -= 1/8
+                elif -3/4 < self.speed.y <= -1/4:
+                    self.speed.y -= 1/4
+                elif -7/4 < self.speed.y <= -3/4:
+                    self.speed.y -= 1/2
+                elif -13/4 < self.speed.y <= -7/4:
+                    self.speed.y -= 3/4
+                elif -5 < self.speed.y <= -13/4:
+                    self.speed.y -= 7/8
+                elif -30 < self.speed.y:
+                    self.speed.y -= self.CONST.gravity
             else:
-                self.speed[1] -= self.CONST.gravity
+                self.speed.y -= self.CONST.gravity
             # 空気抵抗(吹っ飛び時)
             if self.blowed:
                 if self.after_blow_count>0:
                     grip_ratio = self.CONST.grip_weak
-                elif abs(self.speed[0])>self.CONST.speed_max:
+                elif abs(self.speed.x)>self.CONST.speed_max:
                     grip_ratio = self.CONST.grip_strong
                 else:
                     grip_ratio = 0
-                if self.speed[0]>0:
-                    self.speed[0] -= grip_ratio
-                elif self.speed[0]<0:
-                    self.speed[0] += grip_ratio
+                if self.speed.x>0:
+                    self.speed.x -= grip_ratio
+                elif self.speed.x<0:
+                    self.speed.x += grip_ratio
             # 空中ジャンプ
-            if self.Input.direction[1]==1 and not self.double_jumped and self.jump_interval==0 and not self.hopping and not self.restrict_jump:
-                self.speed[1] = self.CONST.air_jump
+            if self.Input.direction.y==1 and not self.double_jumped and self.jump_interval==0 and not self.hopping and not self.restrict_jump:
+                self.speed.y = self.CONST.air_jump
                 self.double_jumped = True
-                self.effects.append(Effect("airjump", (self.x, self.y)))
+                self.effects.append(Effect("airjump", self.pos))
             # 動力(跳ね・吹っ飛び時のみ)
-            jump_height = self.pos[1]-self.radius-stage.GND_HEIGHT
+            jump_height = self.pos.y-self.radius-stage.GND_HEIGHT
             if (self.hopping and jump_height < self.CONST.hopping_height) or self.blowed:
-                if self.Input.direction[0]==1 and self.speed[0]<self.CONST.speed_max:
-                    self.speed[0] += self.CONST.air_power
-                    self.speed[0] = min(self.speed[0], self.CONST.speed_max)
-                elif self.Input.direction[0]==-1 and self.speed[0]>-self.CONST.speed_max:
-                    self.speed[0] -= self.CONST.air_power
-                    self.speed[0] = max(self.speed[0], -self.CONST.speed_max)
+                if self.Input.direction.x==1 and self.speed.x<self.CONST.speed_max:
+                    self.speed.x += self.CONST.air_power
+                    self.speed.x = min(self.speed.x, self.CONST.speed_max)
+                elif self.Input.direction.x==-1 and self.speed.x>-self.CONST.speed_max:
+                    self.speed.x -= self.CONST.air_power
+                    self.speed.x = max(self.speed.x, -self.CONST.speed_max)
 
         # 座標更新
-        GameObject.update()
+        GameObject.update(self)
 
         # 座標を調整
-        if self.pos[0] < self.radius:
-            self.x = self.radius
+        if self.pos.x < self.radius:
+            self.pos.x = self.radius
             if self.blowed:
-                self.speed[0] *= -1
-                self.speed[1] += 10
-        elif self.x > stage.WIDTH-self.radius:
-            self.x = stage.WIDTH-self.radius
+                self.speed.x *= -1
+                self.speed.y += 10
+        elif self.pos.x > stage.WIDTH-self.radius:
+            self.pos.x = stage.WIDTH-self.radius
             if self.blowed:
-                self.speed[0] *= -1
-                self.speed[1] += 10
+                self.speed.x *= -1
+                self.speed.y += 10
         # 接地判定
-        if self.pos[1]-self.radius <= stage.GND_HEIGHT:
+        if self.pos.y-self.radius <= stage.GND_HEIGHT:
             self.on_ground = True
             self.on_platform = False
-            self.pos[1] = stage.GND_HEIGHT + self.radius
+            self.pos.y = stage.GND_HEIGHT + self.radius
         else:
             for platform in stage.platforms:
                 foot_pos = self.pos-Vector2(0, self.radius)
                 last_pos = foot_pos-self.speed
-                if (foot_pos in platform or (platform.is_above(last_pos) and platform.is_below(foot_pos))) and self.speed[1]<=0 and not self.Input.direction[1]==-1:
+                if (foot_pos in platform or (platform.is_above(last_pos) and platform.is_below(foot_pos))) and self.speed.y<=0 and not self.Input.direction.y==-1:
                     self.on_ground = True
                     self.on_platform = True
-                    self.pos[1] = platform.y+self.radius
+                    self.pos.y = platform.y+self.radius
                     break
             else:
                 self.on_ground = False
                 self.on_platform = False
 
+    """ Character傘下にいるオブジェクトの更新を行う """
     def objects_update(self, stage:Stage):
         self.shield.update()
         if self.color == "red":
@@ -460,15 +494,15 @@ class Character(GameObject):
             hit_objects += self.sync_shot.hit_check(pos, r, anti_bullet=anti_bullet, anti_shield=anti_shield)
         return hit_objects
 
-
     """ ダメージとコンボの処理を行う """
     def damage_process(self, damage:int):
         # 初撃
         if self.no_damage_count==0:
             self.hp -= damage
             self.blowed = True
-            self.hammer.reset()
             self.combo += 1
+            if self.color=="red":
+                self.hammer.reset()
         # コンボ
         elif self.combo_count>0:
             print(f"{self.combo} Combo Damage : {damage}→{int(damage/(self.combo+1))}")
@@ -480,51 +514,22 @@ class Character(GameObject):
 class Effect:
     def __init__(self, name:str, pos:Vector2):
         self.name = name
-        self.pos = pos
+        self.pos = pos.copy()
         self.count = 0
         self.active = True
 
     @property
     def frame(self):
         if self.active:
-            return "effect"+","+ self.name+","+str(round(self.pos[0]))+","+str(round(self.pos[1]))+","+str(self.count)+"\n"
+            return "effect"+","+ self.name+","+str(round(self.pos.x))+","+str(round(self.pos.y))+","+str(self.count)+"\n"
 
     def update(self):
         self.count += 1
         if self.name == "airjump" and self.count>10:
             self.active = False
 
-#当たり判定
-class Collision_Circle:
-    def __init__(self, leng, gap, r, damage):
-        self._length = leng
-        self._normal_gap = gap  #法線ギャップ
-        self._radius = r
-        self._damage = damage
 
-    @property
-    def length(self):
-        return self._length
-
-    @property
-    def normal_gap(self):
-        return self._normal_gap
-
-    @property
-    def radius(self):
-        return self._radius
-
-    @property
-    def damage(self):
-        return self._damage
-
-    def pos(self, pos:Vector2, angle:float):
-        return Vector2(0,1).rotate(-angle)*self.length + Vector2(1,0).rotate(-angle)*self.normal_gap
-
-
-#ここまで完了
-
-# シールド
+""" 弾をはじき、タイミングを合わせると近接攻撃も防ぐシールド """
 class Shield:
     def __init__(self, user):
         # 定数
@@ -532,7 +537,7 @@ class Shield:
         # 変数
         self.status = "wait"
         self.user = user
-        self.pos = self.user.pos
+        self.pos = self.user.pos.copy()
         self.radius = self.CONST.radius_first
         self.startup_count = 0
         self.instant_count = 0
@@ -575,10 +580,18 @@ class Shield:
 
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         hit_objects = []
-        if anti_shield and self.pos.distance_to(pos) < self.radius+r and self.status != "wait":
-            hit_objects.append(self)
+        if self.status != "wait":
+            collide_radius = max(self.user.radius, self.radius)       # 判定半径をキャラよりも大きくする
+            if anti_shield and self.pos.distance_to(pos) < collide_radius+r and self.status != "wait":
+                if self.instant_count > 0:
+                    self.user.no_damage_count = 16
+                    self.reset()
+                else:
+                    hit_objects.append(self)
+
         for bullet in self.hitback_bullets:
             hit_objects += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
+
         return hit_objects
 
     def damage_process(self, damage:int):
@@ -594,55 +607,59 @@ class Shield:
             # 相手のオブジェクトと衝突判定
             for target in enemy.hit_check(self.pos, self.radius, anti_bullet=True):
                 # 弾
-                if isinstance(target,Bullet):
+                if isinstance(target,LinerBullet):
                     if target.bounced:
                         target.active = False
                     else:
                         target.bounced = True
-                        if self.pos.distance_to(target.user.pos) < self.radius:
-                            target_user_nearby = True
-                        else:
-                            target_user_nearby = False
-
-                        # キャラへ反射
-                        enemy_pred = target.user.pos + target.user.speed - target.pos
-                        # 反射するための前処理
-                        target.time = 0
-                        self.hitback_bullets.append(target)
-                        target.user = self.user
-                        target.no_damage_count=8
-                        # 反射速度を加算(キャラへ反射)
-                        target.speed = 1.1*target.speed.length()*enemy_pred
-                        # 位置を修正
-                        if not target_user_nearby:
+                        # 反射位置の調整（互いのキャラが接近中は無効）
+                        if self.pos.distance_to(target.user.pos) >= self.radius:
                             if (target.pos-self.pos).length() == 0:
-                                target.pos += Vector2(1,0).normalize()*(self.radius+target.radius) - (target.pos-self.pos)
+                                target.pos += Vector2(1,0)*(self.radius+target.radius) - (target.pos-self.pos)
                             else:
                                 target.pos += (target.pos-self.pos).normalize()*(self.radius+target.radius) - (target.pos-self.pos)
+
+                        # 相手の予測位置へ反射
+                        enemy_predict_pos = target.user.pos + target.user.speed - target.pos
+                        # 反射するための前処理
+                        self.hitback_bullets.append(target)
+                        if type(target)==LinerBullet:
+                            if target.user.color == "red":
+                                target.user.energy_gun.remove_bullet(target)
+                        elif type(target)==SyncBullet:
+                            target.user.sync_shot.remove_bullet(target)
+
+                        target.user = self.user
+                        target.time = 0
+                        target.no_damage_count=8
+                        # 反射速度を加算(キャラへ反射)
+                        target.speed = 1.1*target.speed.length()*enemy_predict_pos
+
                 elif type(target)==Drone:
                     target.active = False
 
     def update(self):
-        self.pos = self.user.pos
+        self.pos = self.user.pos.copy()
         # 発動前
         if self.status == "start_up":
-            if self.startup_count < self.STARTUP:
-                self.radius += (self.RADIUS_MAX-self.radius)/(self.STARTUP-self.startup_count)
+            if self.startup_count < self.CONST.startup:
                 self.startup_count += 1
+                self.radius = lerp(self.radius_first, self.CONST.radius_max, self.CONST.startup/self.startup_count)
             else:
                 self.status = "guard"
                 self.user.restrict_jump = True
+                self.instant_count = self.CONST.instant_block
         # 発動中
         elif self.status == "guard":
-            self.radius = self.RADIUS_MAX
+            self.radius = self.CONST.radius_max
             self.attack()
-            if self.instant_count < self.INSTANT_BLOCK:
-                self.instant_count += 1
+            if self.instant_count > 0:
+                self.instant_count -= 1
         # 発動後
         elif self.status == "recovery":
-            if self.recovery_count < self.RECOVERY:
+            if self.recovery_count < self.CONST.recovery:
                 self.recovery_count += 1
-                self.radius -= (self.RADIUS_MAX-self.user.radius)/self.RECOVERY
+                self.radius = lerp(self.CONST.radius_max, self.user.radius, self.CONST.startup/self.startup_count)
             else:
                 self.reset()
 
@@ -651,71 +668,71 @@ class Shield:
             if not bullet.active and not bullet.display:
                 self.hitback_bullets.remove(bullet)
 
-# 共通弾
-class Bullet:
-    def __init__(self, name, user, speed, angle, damage):
-        # 定数
-        self.MAX_TIME = 40
-        self.name = name
-        self.user = user
-        self.SPEED = speed
-        self.COMBO_INTERVAL = 0
-        self.angle = angle
-        self.radius = 10
+
+""" 事前に入力された速度方向に真っ直ぐ飛翔する弾 """
+class LinerBullet(GameObject):
+    def __init__(self, name:str, user:Character, speed:Vector2, CONST=gameconst.LinerBulletConst() ):
+        GameObject.__init__( self, user.pos, speed )
+        self.CONST = CONST
         # 変数
-        self.x = user.x
-        self.y = user.y
-        self.hp = 10
-        self.speed_x = speed*math.sin(math.radians(angle))
-        self.speed_y = speed*math.cos(math.radians(angle))
-        self.time = 0
-        self.active = True
-        self.display = True
-        self.hitwait_count = 0
-        self.no_damage_count = 0
-        self.bounced = False
-        self.Hit_circle = Collision_Circle(0, 0, self.radius, damage)
+        self.user = user
+        self.alive_count = 0        # 弾の存在時間のカウント
+        self.hitwait_count = 0      # ヒットストップ中の待機カウント
+        self.no_damage_count = 0    # 弾に対するダメージ無敵カウント
+        self.hp = self.CONST.hp_max
+
+        self.active = True          # 弾が更新する(動く)かどうかの判定
+        self.display = True         # 弾が表示されるかどうかの判定
+        self.bounced = False        # シールド・台などに反射した後かどうかの判定
 
     @property
     def frame(self):
         if self.display:
-            return "bullet," + self.name +","+ str(round(self.x)) +","+ str(round(self.y)) +","+ str(round(self.angle))+"\n"
+            return "bullet " + self.CONST.name +" "+ str(round(self.pos)) +" "+ str(round(self.speed, 1)) +"\n"
         else:
             return ""
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
-        if anti_bullet and distance(pos, (self.x, self.y)) < self.radius+r and self.active and self.no_damage_count==0:
-            self.hp -= damage
-            return [self]
-        else:
-            return []
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
+        for circle in self.CONST.hit_circles:
+            circle_pos = self.pos + circle.rel_pos
+            if anti_bullet and circle_pos.distance_to(pos) < circle.radius+r and self.active and self.no_damage_count==0:
+                return [self]
+        return []
 
-    def update(self):
+    def damage_process(self, damage):
+        self.hp -= damage
+
+    def update(self, stage:Stage):
         if self.active:
             self.attack()
             if self.no_damage_count>0:
                 self.no_damage_count-=1
-            self.x += self.speed_x
-            self.y += self.speed_y
-            # 台衝突判定
-            for each in STAGE:
-                if ((self.y-self.speed_y <= each.y-self.radius <= self.y)
-                 or (self.y <= each.y+self.radius <= self.y-self.speed_y)) and self.x in each:
+
+            GameObject.update(self)
+
+            # 地面・台との衝突判定
+            for circle in self.CONST.hit_circles:
+                foot, top = (self.pos + circle.rel_pos) - Vector2(0, circle.radius), (self.pos + circle.rel_pos) + Vector2(0, circle.radius)
+                last_foot, last_top = foot-self.speed, top-self.speed
+                for platform in stage.platforms:
+                    if ((platform.is_below(last_top) and platform.is_above(top)) or (platform.is_above(last_foot) and platform.is_below(foot))):
+                        if self.bounced:
+                            self.active = False
+                        else:
+                            self.speed.reflect_ip(Vector2(0,1))
+                            self.pos.y += self.speed.y
+                            self.bounced = True
+                        break
+                if foot[1] < stage.GND_HEIGHT:
                     if self.bounced:
                         self.active = False
                     else:
-                        self.speed_y *= -1
-                        self.y += self.speed_y
+                        self.speed.reflect_ip(Vector2(0,1))
                         self.bounced = True
-                    break
-            if self.y-self.radius <GND_HEIGHT:
-                if self.bounced:
-                    self.active = False
-                else:
-                    self.speed_y *= -1
-                    self.bounced = True
-            self.time += 1
-            if self.hp<0 or self.time>self.MAX_TIME:
+
+            # 時間管理
+            self.alive_count += 1
+            if self.hp<0 or self.alive_count>self.CONST.alive_frame:
                 self.active = False
         else:
             if self.hitwait_count>0:
@@ -724,33 +741,34 @@ class Bullet:
                 self.display = False
 
     def attack(self):
-        x,y = self.Hit_circle.pos(self.x, self.y, self.angle)
-        damage_ratio = self.Hit_circle.damage/10
-        #ターゲット探索
-        for enemy in self.user.target_list:
-            # 相手のオブジェクトと衝突判定
-            for target in enemy.hit_check((x,y), self.Hit_circle.radius, self.Hit_circle.damage, anti_bullet=True):
-                # キャラに当たった
-                if type(target) == Character:
-                    # 無敵処理
-                    target.no_damage_count = 16
-                    target.combo_count = self.COMBO_INTERVAL
-                    # ヒットストップ処理
-                    target.set_stop(8*damage_ratio, 8*damage_ratio)
-                    self.hitwait_count = int(8*damage_ratio/2)
-                self.active = False
+        for circle in self.CONST.hit_circles:
+            pos = self.pos + circle.rel_pos
+            damage_ratio = circle.damage/self.CONST.hit_circles[0].damage
+            for enemy in self.user.target_list:
+                # 相手のオブジェクトと衝突判定
+                for target in enemy.hit_check(pos, circle.radius, anti_bullet=True):
+                    # ダメージ処理
+                    target.damage_process(circle.damage)
+                    # キャラに当たった
+                    if type(target) == Character:
+                        # 無敵処理
+                        target.no_damage_count = self.CONST.no_damage_frame
+                        target.combo_count = self.CONST.combo_interval
+                        # ヒットストップ処理
+                        if self.CONST.is_include_ratio:
+                            target.set_stop( self.CONST.hit_stop*damage_ratio, self.CONST.shake*damage_ratio)
+                            self.hitwait_count = int(self.CONST.hit_stop*damage_ratio/2)
+                        else:
+                            target.set_stop( self.CONST.hit_stop, self.CONST.shake)
+                            self.hitwait_count = int(self.CONST.hit_stop/2)
+                    self.active = False
 
-# ハンマー攻撃(赤近接)
+
+""" 赤の近接攻撃（ハンマー）ダメージが高く、シールドを破壊する """
 class Hammer:
     def __init__(self, user):
         # 定数
-        self.INTERVAL = 16  # frames
-        self.FRAME_DATA = []
-        with open("Hammer_data.txt") as f:
-            self.STARTUP, self.ATTACKING, self.RECOVERY = [int(_) for _ in f.readline().rstrip('\n').split(',')]
-            for line in f:
-                value = [int(_) for _ in line.rstrip('\n').split(',')]
-                self.FRAME_DATA.append(((value[0],value[1]), value[2]))
+        self.CONST = gameconst.HammerConst()
 
         # 変数
         self.active = False
@@ -758,12 +776,10 @@ class Hammer:
         self.motion = "none"
         self.interval = 0
         self.user = user
-        self.distance_ratio = 1
         self.direction = "right"
 
         self.offset = (0,0)
-        self.angle = self.degree = 0
-        self.Hit_circle = [Collision_Circle(88, 0, 35, 40), Collision_Circle(38, 0, 15, 20)]
+        self.angle = 0
 
     @property
     def frame(self):
@@ -802,7 +818,7 @@ class Hammer:
             self.reset()
             self.active = self.user.action_busy = True
             target = closest(self.user, self.user.target_list)
-            if target != None and target.x < self.user.x:
+            if isinstance(target, Character) and target.pos.x < self.user.pos.x:
                 self.direction = "left"
             else:
                 self.direction = "right"
@@ -811,102 +827,90 @@ class Hammer:
         if self.active and self.user.stop_frame == 0:
             #更新
             self.motion_count += 1
-            self.offset = self.FRAME_DATA[self.motion_count][0]
-            self.degree = self.FRAME_DATA[self.motion_count][1]
-            self.angle = math.radians(self.FRAME_DATA[self.motion_count][1])
+            self.offset = self.CONST.frame_data[self.motion_count][0]
+            self.angle = self.CONST.frame_data[self.motion_count][1]
+
             if self.direction == "left":
-                self.offset = (-self.FRAME_DATA[self.motion_count][0][0], self.FRAME_DATA[self.motion_count][0][1])
-                self.degree *= -1
+                self.offset.x *= -1
                 self.angle *= -1
 
-            if 0 <= self.motion_count < self.STARTUP:
-                # かまえ
+            # かまえ
+            if 0 <= self.motion_count < self.CONST.startup:
                 self.motion = "start_up"
-            elif self.STARTUP <= self.motion_count < self.STARTUP+self.ATTACKING:
-                # 攻撃
+            # 攻撃
+            elif 0 <= self.motion_count-self.CONST.startup < self.CONST.attacking:
                 self.motion = "attack"
                 # 攻撃処理
                 self.attack()
-            elif self.STARTUP+self.ATTACKING <= self.motion_count < self.STARTUP+self.ATTACKING+self.RECOVERY:
-                # フォロースルー
+            # フォロースルー
+            elif 0 <= self.motion_count-(self.CONST.startup+self.CONST.attacking) < self.CONST.recovery:
                 self.motion = "recovery"
             else:
-                self.interval = self.INTERVAL
+                self.interval = self.CONST.interval
                 self.reset()
         else:
             if self.interval > 0:
                 self.interval -= 1
 
     def attack(self):
-        for each in self.Hit_circle:
-            x,y = each.pos(self.user.x+self.offset[0], self.user.y+self.offset[1], self.angle)
-            damage_ratio = each.damage/self.Hit_circle[0].damage
+        for circle in self.CONST.hit_circles:
+            pos = self.offset + circle.rel_pos.rotate(-1*self.angle)
+            damage_ratio = circle.damage/self.CONST.head_damage
             # ヒット処理
             for enemy in self.user.target_list:
                 # 相手のオブジェクトと衝突判定
-                hit = False
-                for target in enemy.hit_check((x,y), each.radius, each.damage, anti_bullet=True, anti_shield=True):
-                    hit = True
-                    self.distance_ratio = distance((target.x, target.y), (x,y))/(each.radius + target.radius)
+                for target in enemy.hit_check(pos, circle.radius, anti_bullet=True, anti_shield=True):
+                    target.damage_process(circle.damage)
                     #相手に当たった
                     if type(target) == Character:
                         # 無敵処理
-                        target.no_damage_count = 96
-                        target.after_blow_count = 8
+                        target.no_damage_count = self.CONST.no_damage_frame
+                        target.after_blow_count = self.CONST.after_blow_frame
                         # ヒットストップ処理
-                        target.set_stop(15*damage_ratio, 15*damage_ratio)
-                        self.user.set_stop(12*damage_ratio+4, 3*damage_ratio)
+                        target.set_stop(self.CONST.hit_stop*damage_ratio+self.CONST.hit_const_stop, self.CONST.shake*damage_ratio)
+                        self.user.set_stop(self.CONST.self_hit_stop*damage_ratio, self.CONST.self_shake*damage_ratio)
                         # 吹っ飛ばし処理
-                        target.speed_y += 16
-                        if self.direction == "right":
-                            target.speed_x += 21
-                        elif self.direction == "left":
-                            target.speed_x -= 21
+                        vector = self.CONST.blow_vector
+                        if self.direction == "left":
+                            vector.x *= -1
+                        target.speed += vector
                     #シールドに当たった
                     elif type(target) == Shield:
                         # ヒットストップ処理
-                        target.user.set_stop(10*damage_ratio+8, 10*damage_ratio)
-                        self.user.set_stop(10*damage_ratio, 3*damage_ratio)
+                        target.user.set_stop(self.CONST.shield_stop*damage_ratio+self.CONST.shield_const_stop, self.CONST.shield_shake*damage_ratio)
+                        self.user.set_stop(self.CONST.shield_stop*damage_ratio, self.CONST.shield_self_shake*damage_ratio)
                     #他オブジェクトとの衝突
                     else:
                         # ヒットストップ処理
-                        self.user.set_stop(4*damage_ratio, 0)
-                if not hit:
-                    self.distance_ratio = 1
+                        self.user.set_stop(self.CONST.self_obj_stop, self.CONST.self_obj_shake)
 
-# エネルギー弾射撃(赤スキル1)
+
+""" 溜めるとダメージ・速度・精度が上がる直進弾を撃つエネルギー銃(赤スキル1) """
 class EnergyGun:
     def __init__(self, user):
         # 定数
-        self.STARTUP = 12
-        self.CHARGE = 24
-        self.INTERVAL = 16 # frame
-        self.RELOAD = int(GameManeger.FPS*1.5)   # sec
-
-        self.BULLET_MAX = 7
-        self.ANGLERANGE_MAX = 15
-        self.ANGLERANGE_MIN = 1
-        self.ROTATION_SPEED = 360/64
+        self.CONST = gameconst.EnergyGunConst()
 
         # 変数
         self.status = "wait"
         self.user = user
         self.target = None
-        self.mag = []
+        self.magazine = []
+        self.shoot_count = 0        # 弾が発射された数
 
-        self.startup_count = 0
-        self.charge_count = 0
-        self.interval_count = 0
-        self.reload_count = 0
+        self.startup_count = 0      # 弾が発射できるまでのカウント
+        self.charge_count = 0       # チャージのフレームカウント
+        self.interval_count = 0     # 弾が出る間隔のカウント
+        self.reload_count = 0       # 装填までのカウントダウン
 
         self.angle = 0
-        self.angle_range = self.ANGLERANGE_MAX
+        self.angle_range = self.CONST.angle_range_max
 
     @property
     def frame(self):
         frame = "egun,"+ self.status +","+ str(round(self.angle)) +","+ str(self.angle_range) +","
         frame += str(self.charge_count) +","+ str(self.CHARGE) +","
-        frame += str(len(self.mag)) +","+ str(self.BULLET_MAX) +","
+        frame += str(len(self.magazine)) +","+ str(self.BULLET_MAX) +","
         frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
 
         for bullet in self.mag:
@@ -914,55 +918,52 @@ class EnergyGun:
 
         return frame
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         bullet_list = []
-        for bullet in self.mag:
-            bullet_list += bullet.hit_check(pos, r, damage, anti_bullet=anti_bullet)
-        # ダメージ0のヒットチェックは反射=所有権の移行
-        if damage==0:
-            for bullet in bullet_list:
-                self.mag.remove(bullet)
+        for bullet in self.magazine:
+            bullet_list += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
         return bullet_list
 
-    def update(self):
+    def remove_bullet(self, bullet):
+        self.magazine.remove(bullet)
+
+    def update(self, stage:Stage):
         if self.reload_count>0:
             self.reload_count -= 1
             if self.reload_count==0:
-                for bullet in self.mag:
-                    bullet.active = False
-                self.mag.clear()
+                self.magazine.clear()
         if self.interval_count>0:
             self.interval_count -= 1
-        if self.status=="charge":
+
+        if self.status=="lockon" or self.status=="wait_shooting":
+            self.startup_count += 1
             #角度追尾
-            x, y = self.target.x - self.user.x, self.target.y - self.user.y
-            angle_gap = gap_angle(slope_angle(x,y), self.angle)
-            if abs(angle_gap)>self.ROTATION_SPEED:
-                if angle_gap>0:
-                    self.angle += self.ROTATION_SPEED
-                else:
-                    self.angle -= self.ROTATION_SPEED
+            target_vector = self.target.pos-self.user.pos
+            target_angle = angle_between(Vector2(0,1).rotate(-self.angle), target_vector)
+            if target_vector[0]>=0:
+                self.angle = round( lerp(90, target_angle, self.startup_count/self.CONST.startup) )
             else:
-                self.angle += angle_gap
-            if self.charge_count<self.CHARGE:
-                self.charge_count += 1
-                self.angle_range = self.ANGLERANGE_MAX + int((self.ANGLERANGE_MIN-self.ANGLERANGE_MAX)*self.charge_count/self.CHARGE)
-        elif self.status=="lockon" or self.status=="shoot":
-            self.startup_count+=1
+                self.angle = round( lerp(-90, target_angle, self.startup_count/self.CONST.startup) )
 
-            x, y = self.target.x - self.user.x, self.target.y - self.user.y
-            # y軸基準, -180~180
-            if x>=0:
-                self.angle = 90+(slope_angle(x,y)-90)*self.startup_count/self.STARTUP
-            else:
-                self.angle = -90+(slope_angle(x,y)-(-90))*self.startup_count/self.STARTUP
-
-            if self.startup_count==self.STARTUP:
+            if self.startup_count==self.CONST.startup:
                 self.startup_count = 0
                 self.charge_start()
+        elif self.status=="charge":
+            #角度追尾
+            angle_gap = angle_between(Vector2(0,1).rotate(-self.angle), self.target.pos-self.user.pos)
+            if abs(angle_gap)>self.CONST.rotate_speed:
+                if angle_gap>0:
+                    self.angle += self.CONST.rotate_speed
+                else:
+                    self.angle -= self.CONST.rotate_speed
+            else:
+                self.angle += angle_gap
+            if self.charge_count<self.CONST.charge:
+                self.charge_count += 1
+                self.angle_range = round(lerp(self.CONST.angle_range_min, self.CONST.angle_range_max, self.charge_count/self.CONST.charge))
 
-        for each in self.mag:
-            each.update()
+        for each in self.magazine:
+            each.update(stage)
 
     def lockon(self):
         if self.reload_count==0:
@@ -974,7 +975,7 @@ class EnergyGun:
                 self.target = self.user
 
     def charge_start(self):
-        if self.status=="shoot":
+        if self.status=="wait_shooting":
             self.shoot()
         else:
             self.status = "charge"
@@ -982,45 +983,50 @@ class EnergyGun:
     def shoot(self):
         if self.reload_count==0:
             if self.status=="lockon" or self.interval_count>0:        #ロックオン,インターバル中は射撃待機
-                self.status = "shoot"
-            elif self.status=="charge" or self.status=="shoot":
-                #弾生成
-                speed = 12 + int((24-12)*(self.charge_count/self.CHARGE))
-                angle = self.angle + random.randint(-self.angle_range,self.angle_range)
-                damage = 5 + int((20-5)*((self.charge_count/self.CHARGE)**2))
-                self.mag.append(Bullet(name="bullet", user=self.user, speed=speed, angle=angle, damage=damage))
-                self.mag[-1].MAX_TIME = 20 + int((40-20)*((self.charge_count/self.CHARGE)**2))
+                self.status = "wait_shooting"
+            elif self.status=="charge" or (self.status=="wait_shooting" and self.interval_count==0):
+                charge_level = (self.charge_count/self.CONST.charge)**2
+
+                angle = self.angle + randint(-self.angle_range,self.angle_range)
+                speed = round(lerp(self.CONST.speed_min, self.CONST.speed_max, charge_level)) * Vector2(0,1).rotate(-angle)
+
+                damage = round(lerp(self.CONST.damage_min, self.CONST.damage_max, charge_level))
+                alive_frame = round(lerp(self.CONST.alive_min, self.CONST.alive_max, charge_level))
+                const = gameconst.EnergyBulletConst(alive_frame=alive_frame, damage=damage)
+
+                self.magazine.append(LinerBullet(name="bullet", user=self.user, speed=speed, CONST=const))
+
+                self.shoot_count += 1
+
                 #変数リセット
                 self.status = "wait"
                 self.user.action_busy = False
                 self.angle = 0
-                self.angle_range = self.ANGLERANGE_MAX
+                self.angle_range = self.CONST.angle_range_max
                 self.charge_count = 0
-                self.interval_count = self.INTERVAL
-                if len(self.mag)==self.BULLET_MAX:
-                    self.reload_count = self.RELOAD
+                self.interval_count = self.CONST.interval
+                if self.shoot_count == self.CONST.bullet_max:
+                    self.reload_count = self.CONST.reload
+                    self.shoot_count = 0
 
-# ドローン本体(赤スキル2)
-class Drone:
+
+""" 敵を追尾し衝突すると爆発するドローン(赤スキル2) """
+class Drone(GameObject):
     def __init__(self, user, target):
+        GameObject.__init__( self, user.pos, Vector2(0,0) )
         # 定数
-        self.MAX_TIME = 320
-        self.HOMING_INTERVAL = 4
-        self.STARTUP = 24
-        self.SPEED = 10
-        self.radius = 15
-        self.damage = 15
+        self.CONST = gameconst.DroneConst()
         # 変数
-        self.x = user.x
-        self.y = user.y
-        self.hp = 5
+        self.hp = self.CONST.hp_max
         self.user = user
         self.target = target
-        self.active = False
-        self.wait = True
-        self.time = 0
-        self.startup_count = 0
-        self.homing_count = 0
+        self.active = False         # ドローンを更新するかの判定
+        self.wait = True            # 射出モーション中かの判定（表示を切らない為）
+
+        self.alive_count = 0        # 弾の存在時間のカウント
+        self.startup_count = 0      # 射出直後に直進するフレームのカウント
+        self.homing_count = 0       # 追尾する間隔のカウント
+        self.hitwait_count = 0      # ヒットストップ中のカウント
 
     @property
     def frame(self):
@@ -1029,81 +1035,78 @@ class Drone:
         else:
             return ""
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
-        if anti_bullet and distance(pos, (self.x, self.y)) < self.radius+r and self.active:
-            self.hp -= damage
-            return [self]
-        else:
-            return []
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
+        for circle in self.CONST.hit_circles:
+            circle_pos = self.pos + circle.rel_pos
+            if anti_bullet and circle_pos.distance_to(pos) < circle.radius+r and self.active:
+                return [self]
+        return []
 
-    def update(self):
+    def damage_process(self, damage):
+        self.hp -= damage
+
+    def update(self, stage:Stage):
         if self.active:
-            if self.startup_count>=self.STARTUP:
+            if self.startup_count>=self.CONST.startup:
                 self.attack()
                 # 追尾
-                if self.homing_count>=self.HOMING_INTERVAL:
+                if self.homing_count>=self.CONST.homing_interval:
                     self.homing_count = 0
                     # 速度変更
-                    e = unit_vector(self.target.x-self.x, self.target.y-self.y)
-                    self.speed_x = 7/8*self.speed_x + e[0]
-                    self.speed_y = 7/8*self.speed_y + e[1]
-                    length = math.sqrt(self.speed_x**2+self.speed_y**2)
+                    self.speed = (self.CONST.speed_max-1)/self.CONST.speed_max*self.speed + (self.target.pos-self.pos).normalize()
+
                     # 速度制限
-                    if length>self.SPEED:
-                        self.speed_x *= self.SPEED/length
-                        self.speed_y *= self.SPEED/length
+                    if self.speed.length() > self.CONST.speed_max:
+                        self.speed.scale_to_length(self.CONST.speed)
                 else:
                     self.homing_count += 1
             else:
                 self.startup_count +=1
-            # 移動
-            self.x += self.speed_x
-            self.y += self.speed_y
 
-            self.time += 1
+            GameObject.update(self)
+            self.alive_count += 1
+
             # 消滅条件
-            if self.hp<0 or self.time>self.MAX_TIME:
+            if self.hp<0 or self.alive_count>self.CONST.alive_frame:
                 self.active = False
 
     def attack(self):
-        #ターゲット探索
-        for enemy in self.user.target_list:
-            # 相手のオブジェクトと衝突判定
-            for target in enemy.hit_check((self.x,self.y), self.radius, self.damage, anti_bullet=True):
-                # キャラに当たった
-                if type(target) == Character:
-                    # 無敵処理
-                    target.no_damage_count = 24
-                    # ヒットストップ処理
-                    target.set_stop(8, 5)
-                self.active = False
+        for circle in self.CONST.hit_circles:
+            pos = self.pos + circle.rel_pos
+            for enemy in self.user.target_list:
+                for target in enemy.hit_check(pos, circle.radius, anti_bullet=True):
+                    # ダメージ処理
+                    target.damage_process(circle.damage)
+                    # キャラに当たった
+                    if type(target) == Character:
+                        # 無敵処理
+                        target.no_damage_count = self.CONST.no_damage_frame
+                        # ヒットストップ処理
+                        target.set_stop( self.CONST.hit_stop, self.CONST.shake)
+                        self.hitwait_count = int(self.CONST.hit_stop/2)
+                    self.active = False
 
     def shoot(self, angle_range):
         self.active = True
         self.wait = False
-        angle = slope_angle(self.target.x-self.x, self.target.y-self.y) + random.randint(-angle_range,angle_range)
-        self.speed_x = self.SPEED*math.sin(math.radians(angle))
-        self.speed_y = self.SPEED*math.cos(math.radians(angle))
+        angle = angle_between(self.target.pos-self.pos, Vector2(0,1)) + randint(-angle_range,angle_range)
+        self.speed = self.CONST.speed_max*Vector2(0, 1).rotate(-angle)
 
-# ドローン管理(赤スキル2)
+
+""" ドローン(赤スキル2)の投擲・射出を管理するクラス """
 class DroneManager:
     def __init__(self, user):
-        # 定数
-        self.RELOAD = 320   # Frame
-        self.BULLET_MAX = 4
-        self.THROW_TIME = 24
-        self.INTERVAL = 24
-        self.ANGLE_RANGE = 20
-
+        self.CONST = gameconst.DroneManagerConst
         # 変数
         self.status = "wait"
         self.user = user
-        self.mag = []
-        self.angle = 0
+        self.magazine = []
+        self.throwing_drone = None      # 投擲中のドローン
 
-        self.throw_count = 0
-        self.interval_count = 0
-        self.reload_count = 0
+        self.throw_count = 0            # 投擲の経過時間カウント
+        self.interval_count = 0         # ドローン射出の間隔のカウント
+        self.shoot_count = 0            # ドローン射出数カウント
+        self.reload_count = 0           # ドローンの再装填カウント
 
     @property
     def frame(self):
@@ -1116,40 +1119,42 @@ class DroneManager:
 
         return frame
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         drone_list = []
-        for drone in self.mag:
-            drone_list += drone.hit_check(pos, r, damage, anti_bullet=anti_bullet)
+        for drone in self.magazine:
+            drone_list += drone.hit_check(pos, r, anti_bullet=anti_bullet)
         return drone_list
 
-    def update(self):
+    def damage_process(self, damage):
+        for drone in self.magazine:
+            drone.damage_process(damage)
+
+    def update(self, stage:Stage):
         if self.reload_count>0:
             self.reload_count -= 1
             if self.reload_count==0:
-                self.mag.clear()
+                self.magazine.clear()
         # 投擲
         if self.status == "throw":
             # 投擲表現
-            #target_angle = slope_angle(self.mag[-1].target.x-self.user.x, self.mag[-1].y-self.user.y)
-            self.angle = gap_angle(self.angle, 270/self.THROW_TIME)
-            self.mag[-1].x = self.user.x + self.user.radius*math.sin(math.radians(self.angle))
-            self.mag[-1].y = self.user.y + self.user.radius*math.cos(math.radians(self.angle))
-
+            self.throwing_drone.pos.rotate_ip(270/self.CONST.throw_time)
             self.throw_count += 1
+
             # 投げ終わりで射出
-            if self.throw_count >= self.THROW_TIME:
+            if self.throw_count >= self.CONST.throw_time:
                 self.throw_count = 0
-                self.mag[-1].shoot(self.ANGLE_RANGE)
+                self.throwing_drone.shoot(self.CONST.angle_range)
+                self.throwing_drone = None
                 self.status = "wait"
                 self.user.action_busy = False
-                self.interval_count = self.INTERVAL
-                if len(self.mag)==self.BULLET_MAX:
-                    self.reload_count = self.RELOAD
+                self.interval_count = self.CONST.interval
+                if self.shoot_count==self.CONST.drone_max:
+                    self.reload_count = self.CONST.reload
         elif self.interval_count>0:
             self.interval_count -= 1
 
-        for each in self.mag:
-            each.update()
+        for drone in self.magazine:
+            drone.update(stage)
 
     def throw_start(self):
         if self.reload_count==0 and self.status == "wait" and self.interval_count==0:
@@ -1158,148 +1163,132 @@ class DroneManager:
             target = closest(self.user, self.user.target_list)
             if target==None:
                 target=self.user
-            self.mag.append(Drone(user=self.user, target=target))
+            self.throwing_drone = Drone(user=self.user, target=target)
+            self.magazine.append(self.throwing_drone)
             self.user.action_busy = True
-            target_angle = slope_angle(target.x-self.user.x, target.y-self.user.y)
-            self.angle = target_angle
+            if (target.pos-self.user.pos).length()!=0:
+                self.throwing_drone.pos = (target.pos-self.user.pos).normalize()*self.user.radius
+            else:
+                self.throwing_drone.pos = Vector2(1,0)*self.user.radius
 
-# 時止め弾(赤スキル３)
-class SynchroBullet(Bullet):
-    def __init__(self, user, speed, angle, damage):
-        super().__init__("sync_bullet", user,speed, angle,damage)
-        self.MAX_TIME = 60
-        self.COMBO_INTERVAL = 8
+
+""" 時止め弾：複数の直進弾を空中に設置し、最後に全ての弾を同時に発射する(赤スキル3) """
+class SyncBullet(LinerBullet):
+    def __init__(self, user:Character, speed:Vector2, const:gameconst.SyncBulletConst):
+        LinerBullet.__init__(self, "sync_bullet", user,speed,const)
         self.active = False
-        self.wait = True
-        self.speed = speed
+        self.shoot_wait = True
 
     def shoot(self, target):
         self.active = True
-        self.wait = False
-        self.angle = slope_angle(target.x-self.x, target.y-self.y)
-        self.speed_x = self.speed*math.sin(math.radians(self.angle))
-        self.speed_y = self.speed*math.cos(math.radians(self.angle))
+        self.shoot_wait = False
+        self.speed = (target.pos-self.pos).normalize()*self.speed.length()
 
-    def update(self):
-        super().update()
-        if self.wait:
+    def update(self, stage:Stage):
+        LinerBullet.update(self, stage)
+        if self.shoot_wait:
             self.display = True
 
-# 時止め射撃(赤スキル３)
-class SynchroShot:
+
+""" 時止め弾（赤スキル3) の設置・同時発射を管理するクラス"""
+class SyncShooter:
     def __init__(self, user):
-        # 定数
-        self.RELOAD = 320
-
-        self.BULLET_MAX = 5
-        self.BULLET_SPEED = 24
-        self.BULLET_DAMAGE = 20
-
         # 変数
         self.user = user
         self.target = None
-        self.mag = []
+        self.magazine = []
 
-        self.shoot_count = 0
-        self.reload_count = 0
+        self.shoot_count = 0        # 設置回数のカウント
+        self.reload_count = 0       # 再装填の時間カウント
 
     @property
     def frame(self):
         frame = "syncshot,"+ str(self.shoot_count) +","+ str(self.BULLET_MAX)  +","
         frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
         # 弾の表示
-        for bullet in self.mag:
+        for bullet in self.magazine:
             frame += bullet.frame
         return frame
 
     # くらい処理
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         bullet_list = []
-        for bullet in self.mag:
-            bullet_list += bullet.hit_check(pos, r, damage, anti_bullet=anti_bullet)
-        # ダメージ0のヒットチェックは反射=所有権の移行
-        if damage==0:
-            for bullet in bullet_list:
-                self.mag.remove(bullet)
+        for bullet in self.magazine:
+            bullet_list += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
         return bullet_list
 
-    def reset(self):
-        self.mag.clear()
-        self.shoot_count = 0
+    def damage_process(self, damage):
+        for bullet in self.magazine:
+            bullet.damage_process(self, damage)
+
+    def remove_bullet(self, bullet):
+        self.magazine.remove(bullet)
 
     # 入力
     def shoot(self):
         if self.reload_count==0:
-            # 弾を仕掛ける
-            if self.shoot_count < self.BULLET_MAX:
-                self.mag.append(SynchroBullet(user=self.user, speed=self.BULLET_SPEED, angle=0, damage=self.BULLET_DAMAGE))
+            # 弾を設置
+            if self.shoot_count < self.CONST.bullet_max:
+                self.magazine.append(SyncBullet(user=self.user, speed=Vector2(1,0)*self.CONST.bullet_speed, CONST=gameconst.SyncBulletConst()))
                 self.shoot_count+=1
             # 射撃
             else:
                 target = closest(self.user, self.user.target_list)
                 if target == None:
                     target = self.user
-                for bullet in self.mag:
+                for bullet in self.magazine:
                     bullet.shoot(target)
-                self.reload_count = self.RELOAD
+                self.reload_count = self.CONST.reload
 
     # 更新処理
-    def update(self):
+    def update(self, stage:Stage):
         if self.reload_count>0:
             self.reload_count -= 1
             if self.reload_count == 0:
-                self.reset()
-        for bullet in self.mag:
-            bullet.update()
-
-# ユーティリティ関数
-def distance(a,b):
-    return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
-
-def closest(user, obj_list):
-    if obj_list is None or len(obj_list)==0:
-        return None
-    distance_list = [distance((user.x, user.y), (each.x, each.y)) for each in obj_list]
-    return obj_list[distance_list.index(min(distance_list))]
-
-def slope_angle(x,y):
-    # y軸正方向からの角度(-180<θ<180)
-    if y==0:
-        if x>=0:
-            angle = 90
-        else:
-            angle = -90
-    elif y>0:
-        angle = math.degrees(math.atan(x/y))
-    else:
-        if x>=0:
-            angle = 180+math.degrees(math.atan(x/y))
-        else:
-            angle = math.degrees(math.atan(x/y))-180
-    return angle
-
-def gap_angle(a, b):
-    angle_gap = a-b
-    if angle_gap>180:
-        angle_gap -= 360
-    elif angle_gap<-180:
-        angle_gap += 360
-    return angle_gap
-
-def unit_vector(x,y):
-    length = math.sqrt(x**2+y**2)
-    if length != 0:
-        return (x/length,y/length)
-    else:
-        return (0,0)
+                self.magazine.clear()
+                self.shoot_count = 0
+        for bullet in self.magazine:
+            bullet.update(stage)
 
 
 if __name__ == '__main__':
-    c = Character("red")
-    classes = [ x[1] for x in inspect.getmembers( inspect.getmodule(Character), inspect.isclass)]
-    pack_start = perf_counter()
+    temp = GameState()
+    temp.add_character("red","6dfbf80a")
+    temp.add_character("red","fb977406")
+    temp.add_character("red","255ce79c")
+    temp.add_character("green","d48bfad8")
+    gs_list = [temp for i in range(8)]
 
-    var_dict = vars(c)
-    frame = json.dumps({k: v for k, v in vars(c).items() if not type(v) in classes}, separators=(',', ':')).encode()
-    print(frame)
-    print(len(frame))
+    # ロールバックの処理負荷検討
+    drone_set = InputHandler()
+    drone_set.set_input(direction=Vector2(0,1), skills=[False,True,False], attack=False, shield=False)
+    shoot_set = InputHandler()
+    shoot_set.set_input(direction=Vector2(1,0), skills=[True,False,False], attack=False, shield=False)
+    shoot_release = InputHandler()
+    shoot_release.set_input(direction=Vector2(1,0), skills=[False,False,False], attack=False, shield=False)
+    gs_list[-1].regist_input(drone_set, "6dfbf80a")
+    gs_list[-1].regist_input(shoot_set, "fb977406")
+    for i in range(16):
+        gs_list[-1].update()
+    gs_list[-1].regist_input(shoot_release, "fb977406")
+    for i in range(2):
+        gs_list[-1].update()
+    pack_start = perf_counter()
+    for state in gs_list:
+        state.update()
+
+    time = perf_counter()-pack_start
+    print(f"1F update time:{time*1000:.3g}ms({time*64*100:.3g}%)")
+
+    rollback_num = 8
+    def fast_copy(x):
+        import pickle
+        return pickle.loads(pickle.dumps(x))
+    pack_start = perf_counter()
+    gs_list[(len(gs_list)-rollback_num):]=[fast_copy(gs_list[-1]) for i in range(rollback_num)]
+    for i in range(rollback_num):
+        for j in range(i):
+            gs_list[i+len(gs_list)-rollback_num].update()
+    time = perf_counter()-pack_start
+    print(f"copy & update {rollback_num} state time:{time*1000:.3g}ms({time*64*100:.3g}%)")
+

@@ -24,6 +24,8 @@ class MainApp:
 
     # イベント処理
     def event_handler(self):
+        input_changed = False
+
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 self.run = False
@@ -38,23 +40,17 @@ class MainApp:
                 del self.joysticks[event.instance_id]
             # 入力処理
             elif event.type == pg.KEYDOWN:
-                if self.Input.keydown(event.key):
-                    input_changed = True
+                input_changed = self.Input.keydown(event.key)
             elif event.type == pg.KEYUP:
-                if self.Input.keyup(event.key):
-                    input_changed = True
+                input_changed = self.Input.keyup(event.key)
             elif event.type == pg.JOYBUTTONDOWN:
-                if self.Input.buttondown(event.button):
-                    input_changed = True
+                input_changed = self.Input.buttondown(event.button)
             elif event.type == pg.JOYBUTTONUP:
-                if self.Input.buttonup(event.button):
-                    input_changed = True
+                input_changed = self.Input.buttonup(event.button)
             elif event.type == pg.JOYAXISMOTION:
-                if self.Input.axismove(event.axis, event.value):
-                    input_changed = True
+                input_changed = self.Input.axismove(event.axis, event.value)
             elif event.type == pg.JOYHATMOTION:
-                if self.Input.hatmove(event.hat, event.value):
-                    input_changed = True
+                input_changed = self.Input.hatmove(event.hat, event.value)
 
         if input_changed:
             print(self.Input)
