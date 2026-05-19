@@ -2,6 +2,7 @@ from pygame.math import lerp, Vector2
 from ctypes import windll
 from time import perf_counter, sleep
 from input import InputHandler
+from random import randint
 import gameconst
 
 
@@ -214,8 +215,8 @@ class Character(GameObject):
         # ヒットストップ時の振動
         if self.stop_frame != 0:
             shake = int(self.shake_ratio*self.stop_count/self.stop_frame)+1
-            self.shake_x = int( ((-1)**int((self.stop_count%4-1)/2) )*(random.randint(0,int(shake/2))+int(shake/2)))
-            self.shake_y = int( ((-1)**int((self.stop_count%4-1)/2) )*(random.randint(0,int(shake/2))+int(shake/2)))
+            self.shake_x = int( ( (-1)**int((self.stop_count%4-1)/2) )*(randint(0,int(shake/2))+int(shake/2)))
+            self.shake_y = int( ( (-1)**randint(0,1) )*(randint(0,int(shake/2))+int(shake/2)))
             if self.on_ground:
                 self.shake_y = 0
         else:
