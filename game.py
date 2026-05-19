@@ -715,17 +715,12 @@ class LinerBullet(GameObject):
                             self.hitwait_count = int(self.CONST.hit_stop/2)
                     self.active = False
 
-# ハンマー攻撃(赤近接)
+
+""" 赤の近接攻撃（ハンマー）ダメージが高く、シールドを破壊する """
 class Hammer:
     def __init__(self, user):
         # 定数
-        self.INTERVAL = 16  # frames
-        self.FRAME_DATA = []
-        with open("Hammer_data.txt") as f:
-            self.STARTUP, self.ATTACKING, self.RECOVERY = [int(_) for _ in f.readline().rstrip('\n').split(',')]
-            for line in f:
-                value = [int(_) for _ in line.rstrip('\n').split(',')]
-                self.FRAME_DATA.append(((value[0],value[1]), value[2]))
+        self.CONST = gameconst.HammerConst()
 
         # 変数
         self.active = False
@@ -733,12 +728,10 @@ class Hammer:
         self.motion = "none"
         self.interval = 0
         self.user = user
-        self.distance_ratio = 1
         self.direction = "right"
 
         self.offset = (0,0)
-        self.angle = self.degree = 0
-        self.Hit_circle = [Collision_Circle(88, 0, 35, 40), Collision_Circle(38, 0, 15, 20)]
+        self.angle = 0
 
     @property
     def frame(self):
@@ -777,7 +770,7 @@ class Hammer:
             self.reset()
             self.active = self.user.action_busy = True
             target = closest(self.user, self.user.target_list)
-            if target != None and target.x < self.user.x:
+            if isinstance(target, Character) and target.pos.x < self.user.pos.x:
                 self.direction = "left"
             else:
                 self.direction = "right"
@@ -786,68 +779,62 @@ class Hammer:
         if self.active and self.user.stop_frame == 0:
             #更新
             self.motion_count += 1
-            self.offset = self.FRAME_DATA[self.motion_count][0]
-            self.degree = self.FRAME_DATA[self.motion_count][1]
-            self.angle = math.radians(self.FRAME_DATA[self.motion_count][1])
+            self.offset = self.CONST.frame_data[self.motion_count][0]
+            self.angle = self.CONST.frame_data[self.motion_count][1]
+
             if self.direction == "left":
-                self.offset = (-self.FRAME_DATA[self.motion_count][0][0], self.FRAME_DATA[self.motion_count][0][1])
-                self.degree *= -1
+                self.offset.x *= -1
                 self.angle *= -1
 
-            if 0 <= self.motion_count < self.STARTUP:
-                # かまえ
+            # かまえ
+            if 0 <= self.motion_count < self.CONST.startup:
                 self.motion = "start_up"
-            elif self.STARTUP <= self.motion_count < self.STARTUP+self.ATTACKING:
-                # 攻撃
+            # 攻撃
+            elif 0 <= self.motion_count-self.CONST.startup < self.CONST.attacking:
                 self.motion = "attack"
                 # 攻撃処理
                 self.attack()
-            elif self.STARTUP+self.ATTACKING <= self.motion_count < self.STARTUP+self.ATTACKING+self.RECOVERY:
-                # フォロースルー
+            # フォロースルー
+            elif 0 <= self.motion_count-(self.CONST.startup+self.CONST.attacking) < self.CONST.recovery:
                 self.motion = "recovery"
             else:
-                self.interval = self.INTERVAL
+                self.interval = self.CONST.interval
                 self.reset()
         else:
             if self.interval > 0:
                 self.interval -= 1
 
     def attack(self):
-        for each in self.Hit_circle:
-            x,y = each.pos(self.user.x+self.offset[0], self.user.y+self.offset[1], self.angle)
-            damage_ratio = each.damage/self.Hit_circle[0].damage
+        for circle in self.CONST.hit_circles:
+            pos = self.offset + circle.rel_pos.rotate(-1*self.angle)
+            damage_ratio = circle.damage/self.CONST.head_damage
             # ヒット処理
             for enemy in self.user.target_list:
                 # 相手のオブジェクトと衝突判定
-                hit = False
-                for target in enemy.hit_check((x,y), each.radius, each.damage, anti_bullet=True, anti_shield=True):
-                    hit = True
-                    self.distance_ratio = distance((target.x, target.y), (x,y))/(each.radius + target.radius)
+                for target in enemy.hit_check(pos, circle.radius, anti_bullet=True, anti_shield=True):
+                    target.damage_process(circle.damage)
                     #相手に当たった
                     if type(target) == Character:
                         # 無敵処理
-                        target.no_damage_count = 96
-                        target.after_blow_count = 8
+                        target.no_damage_count = self.CONST.no_damage_frame
+                        target.after_blow_count = self.CONST.after_blow_frame
                         # ヒットストップ処理
-                        target.set_stop(15*damage_ratio, 15*damage_ratio)
-                        self.user.set_stop(12*damage_ratio+4, 3*damage_ratio)
+                        target.set_stop(self.CONST.hit_stop*damage_ratio+self.CONST.hit_const_stop, self.CONST.shake*damage_ratio)
+                        self.user.set_stop(self.CONST.self_hit_stop*damage_ratio, self.CONST.self_shake*damage_ratio)
                         # 吹っ飛ばし処理
-                        target.speed_y += 16
-                        if self.direction == "right":
-                            target.speed_x += 21
-                        elif self.direction == "left":
-                            target.speed_x -= 21
+                        vector = self.CONST.blow_vector
+                        if self.direction == "left":
+                            vector.x *= -1
+                        target.speed += vector
                     #シールドに当たった
                     elif type(target) == Shield:
                         # ヒットストップ処理
-                        target.user.set_stop(10*damage_ratio+8, 10*damage_ratio)
-                        self.user.set_stop(10*damage_ratio, 3*damage_ratio)
+                        target.user.set_stop(self.CONST.shield_stop*damage_ratio+self.CONST.shield_const_stop, self.CONST.shield_shake*damage_ratio)
+                        self.user.set_stop(self.CONST.shield_stop*damage_ratio, self.CONST.shield_self_shake*damage_ratio)
                     #他オブジェクトとの衝突
                     else:
                         # ヒットストップ処理
-                        self.user.set_stop(4*damage_ratio, 0)
-                if not hit:
-                    self.distance_ratio = 1
+                        self.user.set_stop(self.CONST.self_obj_stop, self.CONST.self_obj_shake)
 
 # エネルギー弾射撃(赤スキル1)
 class EnergyGun:
