@@ -517,14 +517,14 @@ class Character(GameObject):
 class Effect:
     def __init__(self, name:str, pos:Vector2):
         self.name = name
-        self.pos = pos
+        self.pos = pos.copy()
         self.count = 0
         self.active = True
 
     @property
     def frame(self):
         if self.active:
-            return "effect"+","+ self.name+","+str(round(self.pos[0]))+","+str(round(self.pos[1]))+","+str(self.count)+"\n"
+            return "effect"+","+ self.name+","+str(round(self.pos.x))+","+str(round(self.pos.y))+","+str(self.count)+"\n"
 
     def update(self):
         self.count += 1
