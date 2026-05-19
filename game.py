@@ -160,8 +160,8 @@ class Platform:
 
 class GameObject:
     def __init__(self, pos:Vector2, speed:Vector2):
-        self.pos = pos
-        self.speed = speed
+        self.pos = pos.copy()
+        self.speed = speed.copy()
 
     def update(self):
         self.pos += self.speed
@@ -443,7 +443,7 @@ class Character(GameObject):
                     self.speed.x = max(self.speed.x, -self.CONST.speed_max)
 
         # 座標更新
-        GameObject.update()
+        GameObject.update(self)
 
         # 座標を調整
         if self.pos.x < self.radius:
