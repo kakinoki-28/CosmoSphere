@@ -5,8 +5,19 @@ from input import InputHandler
 import gameconst
 
 
+# ユーティリティ関数
+def closest(user, obj_list):
+    if obj_list is None or len(obj_list)==0:
+        return None
+    distance_list = [user.pos.distance_to(obj.pos) for obj in obj_list]
+    return obj_list[distance_list.index(min(distance_list))]
+
+def angle_between(a:Vector2, b:Vector2):
+    return -(a.rotate(-90).angle_to(b.rotate(-90)))
+
+
+""" ゲーム進行全体の管理 """
 class GameManeger:
-    """ ゲーム進行全体の管理 """
     FPS = 64
     FRAME_LATENCY = 1/FPS
 
@@ -1201,46 +1212,6 @@ class SyncShooter:
                 self.shoot_count = 0
         for bullet in self.magazine:
             bullet.update(stage)
-# ユーティリティ関数
-def distance(a,b):
-    return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
-
-def closest(user, obj_list):
-    if obj_list is None or len(obj_list)==0:
-        return None
-    distance_list = [distance((user.x, user.y), (each.x, each.y)) for each in obj_list]
-    return obj_list[distance_list.index(min(distance_list))]
-
-def slope_angle(x,y):
-    # y軸正方向からの角度(-180<θ<180)
-    if y==0:
-        if x>=0:
-            angle = 90
-        else:
-            angle = -90
-    elif y>0:
-        angle = math.degrees(math.atan(x/y))
-    else:
-        if x>=0:
-            angle = 180+math.degrees(math.atan(x/y))
-        else:
-            angle = math.degrees(math.atan(x/y))-180
-    return angle
-
-def gap_angle(a, b):
-    angle_gap = a-b
-    if angle_gap>180:
-        angle_gap -= 360
-    elif angle_gap<-180:
-        angle_gap += 360
-    return angle_gap
-
-def unit_vector(x,y):
-    length = math.sqrt(x**2+y**2)
-    if length != 0:
-        return (x/length,y/length)
-    else:
-        return (0,0)
 
 
 if __name__ == '__main__':
