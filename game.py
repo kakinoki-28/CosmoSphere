@@ -209,7 +209,7 @@ class Character(GameObject):
             # 射撃
             self.energy_gun = EnergyGun(user=self)
             self.drone = DroneManager(user=self)
-            self.sync_shot = SynchroShot(user=self)
+            self.sync_shot = SyncShooter(user=self)
             # ハンマー攻撃
             self.hammer = Hammer(user=self)
 
@@ -503,8 +503,9 @@ class Character(GameObject):
         if self.no_damage_count==0:
             self.hp -= damage
             self.blowed = True
-            self.hammer.reset()
             self.combo += 1
+            if self.color=="red":
+                self.hammer.reset()
         # コンボ
         elif self.combo_count>0:
             print(f"{self.combo} Combo Damage : {damage}→{int(damage/(self.combo+1))}")
@@ -609,7 +610,7 @@ class Shield:
             # 相手のオブジェクトと衝突判定
             for target in enemy.hit_check(self.pos, self.radius, anti_bullet=True):
                 # 弾
-                if isinstance(target,Bullet):
+                if isinstance(target,LinerBullet):
                     if target.bounced:
                         target.active = False
                     else:
@@ -624,9 +625,15 @@ class Shield:
                         # 相手の予測位置へ反射
                         enemy_predict_pos = target.user.pos + target.user.speed - target.pos
                         # 反射するための前処理
-                        target.time = 0
                         self.hitback_bullets.append(target)
+                        if type(target)==LinerBullet:
+                            if target.user.color == "red":
+                                target.user.energy_gun.remove_bullet(target)
+                        elif type(target)==SyncBullet:
+                            target.user.sync_shot.remove_bullet(target)
+
                         target.user = self.user
+                        target.time = 0
                         target.no_damage_count=8
                         # 反射速度を加算(キャラへ反射)
                         target.speed = 1.1*target.speed.length()*enemy_predict_pos
