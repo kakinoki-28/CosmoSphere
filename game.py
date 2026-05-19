@@ -836,25 +836,19 @@ class Hammer:
                         # ヒットストップ処理
                         self.user.set_stop(self.CONST.self_obj_stop, self.CONST.self_obj_shake)
 
-# エネルギー弾射撃(赤スキル1)
+
+""" 溜めるとダメージ・速度・精度が上がる直進弾を撃つエネルギー銃(赤スキル1) """
 class EnergyGun:
     def __init__(self, user):
         # 定数
-        self.STARTUP = 12
-        self.CHARGE = 24
-        self.INTERVAL = 16 # frame
-        self.RELOAD = int(GameManeger.FPS*1.5)   # sec
-
-        self.BULLET_MAX = 7
-        self.ANGLERANGE_MAX = 15
-        self.ANGLERANGE_MIN = 1
-        self.ROTATION_SPEED = 360/64
+        self.CONST = gameconst.EnergyGunConst()
 
         # 変数
         self.status = "wait"
         self.user = user
         self.target = None
-        self.mag = []
+        self.magazine = []
+        self.shoot_count = 0        # 弾が発射された数
 
         self.startup_count = 0
         self.charge_count = 0
@@ -862,13 +856,13 @@ class EnergyGun:
         self.reload_count = 0
 
         self.angle = 0
-        self.angle_range = self.ANGLERANGE_MAX
+        self.angle_range = self.CONST.angle_range_max
 
     @property
     def frame(self):
         frame = "egun,"+ self.status +","+ str(round(self.angle)) +","+ str(self.angle_range) +","
         frame += str(self.charge_count) +","+ str(self.CHARGE) +","
-        frame += str(len(self.mag)) +","+ str(self.BULLET_MAX) +","
+        frame += str(len(self.magazine)) +","+ str(self.BULLET_MAX) +","
         frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
 
         for bullet in self.mag:
@@ -876,55 +870,52 @@ class EnergyGun:
 
         return frame
 
-    def hit_check(self, pos, r, damage, anti_bullet=False, anti_shield=False):
+    def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         bullet_list = []
-        for bullet in self.mag:
-            bullet_list += bullet.hit_check(pos, r, damage, anti_bullet=anti_bullet)
-        # ダメージ0のヒットチェックは反射=所有権の移行
-        if damage==0:
-            for bullet in bullet_list:
-                self.mag.remove(bullet)
+        for bullet in self.magazine:
+            bullet_list += bullet.hit_check(pos, r, anti_bullet=anti_bullet)
         return bullet_list
 
-    def update(self):
+    def remove_bullet(self, bullet):
+        self.magazine.remove(bullet)
+
+    def update(self, stage:Stage):
         if self.reload_count>0:
             self.reload_count -= 1
             if self.reload_count==0:
-                for bullet in self.mag:
-                    bullet.active = False
-                self.mag.clear()
+                self.magazine.clear()
         if self.interval_count>0:
             self.interval_count -= 1
-        if self.status=="charge":
+
+        if self.status=="lockon" or self.status=="wait_shooting":
+            self.startup_count += 1
             #角度追尾
-            x, y = self.target.x - self.user.x, self.target.y - self.user.y
-            angle_gap = gap_angle(slope_angle(x,y), self.angle)
-            if abs(angle_gap)>self.ROTATION_SPEED:
-                if angle_gap>0:
-                    self.angle += self.ROTATION_SPEED
-                else:
-                    self.angle -= self.ROTATION_SPEED
+            target_vector = self.target.pos-self.user.pos
+            target_angle = angle_between(Vector2(0,1).rotate(-self.angle), target_vector)
+            if target_vector[0]>=0:
+                self.angle = round( lerp(90, target_angle, self.startup_count/self.CONST.startup) )
             else:
-                self.angle += angle_gap
-            if self.charge_count<self.CHARGE:
-                self.charge_count += 1
-                self.angle_range = self.ANGLERANGE_MAX + int((self.ANGLERANGE_MIN-self.ANGLERANGE_MAX)*self.charge_count/self.CHARGE)
-        elif self.status=="lockon" or self.status=="shoot":
-            self.startup_count+=1
+                self.angle = round( lerp(-90, target_angle, self.startup_count/self.CONST.startup) )
 
-            x, y = self.target.x - self.user.x, self.target.y - self.user.y
-            # y軸基準, -180~180
-            if x>=0:
-                self.angle = 90+(slope_angle(x,y)-90)*self.startup_count/self.STARTUP
-            else:
-                self.angle = -90+(slope_angle(x,y)-(-90))*self.startup_count/self.STARTUP
-
-            if self.startup_count==self.STARTUP:
+            if self.startup_count==self.CONST.startup:
                 self.startup_count = 0
                 self.charge_start()
+        elif self.status=="charge":
+            #角度追尾
+            angle_gap = angle_between(Vector2(0,1).rotate(-self.angle), self.target.pos-self.user.pos)
+            if abs(angle_gap)>self.CONST.rotate_speed:
+                if angle_gap>0:
+                    self.angle += self.CONST.rotate_speed
+                else:
+                    self.angle -= self.CONST.rotate_speed
+            else:
+                self.angle += angle_gap
+            if self.charge_count<self.CONST.charge:
+                self.charge_count += 1
+                self.angle_range = round(lerp(self.CONST.angle_range_min, self.CONST.angle_range_max, self.charge_count/self.CONST.charge))
 
-        for each in self.mag:
-            each.update()
+        for each in self.magazine:
+            each.update(stage)
 
     def lockon(self):
         if self.reload_count==0:
@@ -936,7 +927,7 @@ class EnergyGun:
                 self.target = self.user
 
     def charge_start(self):
-        if self.status=="shoot":
+        if self.status=="wait_shooting":
             self.shoot()
         else:
             self.status = "charge"
@@ -944,23 +935,31 @@ class EnergyGun:
     def shoot(self):
         if self.reload_count==0:
             if self.status=="lockon" or self.interval_count>0:        #ロックオン,インターバル中は射撃待機
-                self.status = "shoot"
-            elif self.status=="charge" or self.status=="shoot":
-                #弾生成
-                speed = 12 + int((24-12)*(self.charge_count/self.CHARGE))
-                angle = self.angle + random.randint(-self.angle_range,self.angle_range)
-                damage = 5 + int((20-5)*((self.charge_count/self.CHARGE)**2))
-                self.mag.append(Bullet(name="bullet", user=self.user, speed=speed, angle=angle, damage=damage))
-                self.mag[-1].MAX_TIME = 20 + int((40-20)*((self.charge_count/self.CHARGE)**2))
+                self.status = "wait_shooting"
+            elif self.status=="charge" or (self.status=="wait_shooting" and self.interval_count==0):
+                charge_level = (self.charge_count/self.CONST.charge)**2
+
+                angle = self.angle + randint(-self.angle_range,self.angle_range)
+                speed = round(lerp(self.CONST.speed_min, self.CONST.speed_max, charge_level)) * Vector2(0,1).rotate(-angle)
+
+                damage = round(lerp(self.CONST.damage_min, self.CONST.damage_max, charge_level))
+                alive_frame = round(lerp(self.CONST.alive_min, self.CONST.alive_max, charge_level))
+                const = gameconst.EnergyBulletConst(alive_frame=alive_frame, damage=damage)
+
+                self.magazine.append(LinerBullet(name="bullet", user=self.user, speed=speed, CONST=const))
+
+                self.shoot_count += 1
+
                 #変数リセット
                 self.status = "wait"
                 self.user.action_busy = False
                 self.angle = 0
-                self.angle_range = self.ANGLERANGE_MAX
+                self.angle_range = self.CONST.angle_range_max
                 self.charge_count = 0
-                self.interval_count = self.INTERVAL
-                if len(self.mag)==self.BULLET_MAX:
-                    self.reload_count = self.RELOAD
+                self.interval_count = self.CONST.interval
+                if self.shoot_count == self.CONST.bullet_max:
+                    self.reload_count = self.CONST.reload
+                    self.shoot_count = 0
 
 # ドローン本体(赤スキル2)
 class Drone:
