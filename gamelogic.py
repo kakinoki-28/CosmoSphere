@@ -17,60 +17,6 @@ def angle_between(a:Vector2, b:Vector2):
     return -(a.rotate(-90).angle_to(b.rotate(-90)))
 
 
-""" ゲーム進行全体の管理 """
-class GameManeger:
-    FPS = 64
-    FRAME_LATENCY = 1/FPS
-
-    def __init__(self):
-        self.run = True
-        def dummy(frame):
-            pass
-        self.update_func = dummy    # ゲームが更新される際に呼び出される関数(通信等)
-        self.frame_rate = 0         # フレームレートの保存
-
-        self.available_color = ["red", "green"] # 利用可能なキャラの色
-        self.state = GameState()
-
-    """ ゲームの初期化 """
-    def init_game(self):
-        self.state.init_game()
-
-    """ キャラの追加 """
-    def add_character(self, color, id):
-        if color in self.available_color:
-            return self.state.add_character(color, id)
-        else:
-            raise ValueError(f"{color} is not available color")
-
-    """ キャラの削除 """
-    def remove_character(self, character):
-        self.state.remove_character(character)
-
-    """ ゲームのメイン処理 """
-    def mainloop(self):
-        windll.winmm.timeBeginPeriod(1)     # タイマーの精度向上
-        frame_time = [perf_counter()]*2     # フレームレートの観測用リスト
-        delay = 0
-        while self.run:
-            start = perf_counter()
-
-            frame = self.state.update()     # ゲーム状況を更新
-            self.update_func(frame)         # フレーム毎実行処理
-
-            # フレーム計測
-            frame_time[1] = perf_counter()
-            self.frame_rate = 1/(frame_time[1]-frame_time[0])
-            frame_time[0] = perf_counter()
-
-            # フレーム遅延処理
-            delay = perf_counter()-start
-            if self.FRAME_LATENCY-delay > 0.001:
-                sleep(int((self.FRAME_LATENCY-delay)/0.001)*0.001)
-            while perf_counter()-start < self.FRAME_LATENCY:
-                pass
-        windll.winmm.timeEndPeriod(1)
-
 """ ゲーム状況が再現可能な情報を保存するクラス
     入力などの情報を付加しながらゲーム状況を進めることもできる """
 class GameState:
@@ -118,6 +64,7 @@ class GameState:
             character.objects_update(self.stage)
             #frame += character.frame
         return frame.encode()
+
 
 """ ゲームステージ全体の情報の管理するクラス """
 class Stage:
