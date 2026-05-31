@@ -163,9 +163,27 @@ class InputHandler:
     def hatmove(self, hat, value):
         using = bool(self.config["JOYSTICK"][f"Hat{hat}"])
         if using:
-            self.direction.update(value)
-            return True
-        return False
+            if (not "right" in self.actions) and value[0] == 1:
+                self.add_action("right")
+            elif (not "left" in self.actions) and value[0] == -1:
+                self.add_action("left")
+            elif "right" in self.actions and value[0] < 1:
+                self.remove_action("right")
+            elif "left" in self.actions and value[0] > -1:
+                self.remove_action("left")
+            elif (not "up" in self.actions) and value[1] == 1:
+                self.add_action("up")
+            elif (not "down" in self.actions) and value[1] == -1:
+                self.add_action("down")
+            elif "up" in self.actions and value[1] < 1:
+                self.remove_action("up")
+            elif "down" in self.actions and value[1] > -1:
+                self.remove_action("down")
+                print("remove down from hat")
+            else:
+                return False      
+        return True
+        
 
 
     """コントローラー接続時に未設定の処理を追加"""

@@ -58,17 +58,17 @@ class MainApp:
                 del self.joysticks[event.instance_id]
             # 入力処理
             elif event.type == pg.KEYDOWN:
-                input_changed = self.Input.keydown(event.key)
+                input_changed |= self.Input.keydown(event.key)
             elif event.type == pg.KEYUP:
-                input_changed = self.Input.keyup(event.key)
+                input_changed |= self.Input.keyup(event.key)
             elif event.type == pg.JOYBUTTONDOWN:
-                input_changed = self.Input.buttondown(event.button)
+                input_changed |= self.Input.buttondown(event.button)
             elif event.type == pg.JOYBUTTONUP:
-                input_changed = self.Input.buttonup(event.button)
+                input_changed |= self.Input.buttonup(event.button)
             elif event.type == pg.JOYAXISMOTION:
-                input_changed = self.Input.axismove(event.axis, event.value)
+                input_changed |= self.Input.axismove(event.axis, event.value)
             elif event.type == pg.JOYHATMOTION:
-                input_changed = self.Input.hatmove(event.hat, event.value)
+                input_changed |= self.Input.hatmove(event.hat, event.value)
 
         if input_changed:
             self.game_mgr.regist_input(0, self.Input)
