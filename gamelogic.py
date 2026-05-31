@@ -47,7 +47,7 @@ class GameState:
             chara.target_list = [_ for _ in self.characters if _ != chara]
 
     """ 入力の登録(不可逆的な変更) """
-    def regist_input(self, new_input:InputHandler, id):
+    def regist_input(self, id, new_input:InputHandler):
         for character in [_ for _ in self.characters_list if _.id == id]:
             character.input_update(new_input)
 

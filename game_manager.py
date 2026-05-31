@@ -35,6 +35,10 @@ class GameManeger:
     def remove_character(self, character):
         self.state.remove_character(character)
 
+    """ 指定idのキャラへ入力を登録 """    
+    def regist_input(self, id, new_input):
+        self.state.regist_input(id, new_input)
+
     """ ゲームの描画 """
     def draw_game(self, window):
         self.renderer.render(window, self.state)
@@ -62,5 +66,4 @@ class GameManeger:
             while perf_counter()-start < self.FRAME_LATENCY:
                 pass
         windll.winmm.timeEndPeriod(1)
-
 

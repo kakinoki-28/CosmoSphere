@@ -71,6 +71,7 @@ class MainApp:
                 input_changed = self.Input.hatmove(event.hat, event.value)
 
         if input_changed:
+            self.game_mgr.regist_input(0, self.Input)
             print(self.Input)
 
     # メインループ(イベントループ処理)
