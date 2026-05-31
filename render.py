@@ -1,10 +1,13 @@
 import pygame
 from dataclasses import dataclass, field
 import os
+import math
 from random import randint
 import gamelogic
 
 IMAGE_FOLDER = "images"
+
+SILVER = (192, 192, 192)
 
 def load_image(file):
     # 画像読み込み用
@@ -15,13 +18,26 @@ def load_image(file):
         raise SystemExit('Could not load image "%s" %s' % (file, pygame.get_error()))
     return surface
 
+""" おうぎ形を描画する関数 """
+def draw_pie(screen, color, pos, radius, angle, angle_range):
+    import pygame.gfxdraw
+    p=[pos]
+    for n in range(angle-angle_range,angle+angle_range):
+        x = pos[0]+round(radius*math.sin(n*math.pi/180))
+        y = pos[1]-round(radius*math.cos(n*math.pi/180))
+        p.append((x, y))
+    pygame.draw.polygon(screen, color, p)
+    pygame.gfxdraw.aapolygon(screen, p, color)
+
 """ 画像Surfaceを保持するクラス """
 @dataclass
 class ImageAssets:
-    stage: dict[str, pygame.Surface] = field(default_factory=dict)        # ステージの画像を保持する辞書
-    characters: dict[str, pygame.Surface] = field(default_factory=dict)   # キャラクターの画像を保持する辞書
-    module: dict[str, pygame.Surface] = field(default_factory=dict)       # キャラが使用する画像を保持する辞書
-    effect: dict[str, pygame.Surface] = field(default_factory=dict)       # エフェクトの画像を保持する辞書
+    stage: dict[str, pygame.Surface] = field(default_factory=dict)      # ステージの画像を保持する辞書
+    character: dict[str, pygame.Surface] = field(default_factory=dict)  # キャラクターの画像を保持する辞書
+    shield: dict[str, pygame.Surface] = field(default_factory=dict)     # シールドの画像
+    melee: dict[str, pygame.Surface] = field(default_factory=dict)      # 近接攻撃の画像を保持する辞書
+    bullet: dict[str, pygame.Surface] = field(default_factory=dict)     # キャラが使用する弾の画像を保持する辞書
+    effect: dict[str, pygame.Surface] = field(default_factory=dict)     # エフェクトの画像を保持する辞書
 
     def __post_init__(self):
         # 画像の読み込み
@@ -30,12 +46,18 @@ class ImageAssets:
             "stage": load_image("stage.png").convert(),
             "platform": load_image("platform.png").convert_alpha()
         }
-        self.characters = {
+        self.character = {
             "red": load_image(os.path.join("character", "red.png")).convert_alpha(),
             "green": load_image(os.path.join("character", "green.png")).convert_alpha()
         }
-        self.module = {
-            "shield": load_image("shield.png").convert_alpha()
+        self.shield = {
+            "default": load_image("shield.png").convert_alpha()
+        }
+        self.melee = {
+            "hammer": load_image("hammer.png").convert_alpha()
+        }
+        self.bullet = {
+            "liner_bullet": load_image("liner_bullet.png").convert_alpha()
         }
         self.effect = {
             "airjump": load_image("airjump.png").convert_alpha()
@@ -76,7 +98,7 @@ class GameRenderer:
 
         # キャラクターの描画
         for chara in game_state.characters_list:
-            chara_image = self.image_assets.characters[chara.color].copy()
+            chara_image = self.image_assets.character[chara.color].copy()
             X, Y = round(chara.pos.x), round(chara.pos.y)
             # 無敵時の点滅処理
             if chara.no_damage_count>0:
@@ -98,9 +120,21 @@ class GameRenderer:
 
             # シールド
             if chara.shield.status != "wait":
-                shield_image = self.image_assets.module["shield"].copy()
+                shield_image = self.image_assets.shield["default"].copy()
                 if chara.shield.radius*2 != shield_image.get_width():
                     shield_image = pygame.transform.smoothscale(shield_image, (chara.shield.radius*2,)*2)
                 blit_center(self.screen, shield_image, (X, self.screen.get_height()-Y))
+        # 攻撃系の描画
+        for chara in game_state.characters_list:
+            if chara.color == "red":
+                # スキル1:エネルギーガン
+                if chara.energy_gun.status != "wait":
+                    draw_pie(self.screen, SILVER, (chara.pos.x, self.screen.get_height()-chara.pos.y), 
+                             40+10*chara.energy_gun.charge_count/chara.energy_gun.CONST.charge, 
+                             round(chara.energy_gun.angle), round(chara.energy_gun.angle_range))
+                    print(chara.energy_gun.angle_range)
+                for bullet in chara.energy_gun.magazine:
+                    blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
+                    
         # 描画の反映
         window.blit(self.screen, (0, 0))

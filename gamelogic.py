@@ -913,7 +913,7 @@ class EnergyGun:
                 self.angle += angle_gap
             if self.charge_count<self.CONST.charge:
                 self.charge_count += 1
-                self.angle_range = round(lerp(self.CONST.angle_range_min, self.CONST.angle_range_max, self.charge_count/self.CONST.charge))
+                self.angle_range = round(lerp(self.CONST.angle_range_min, self.CONST.angle_range_max, 1-self.charge_count/self.CONST.charge))
 
         for each in self.magazine:
             each.update(stage)
