@@ -76,9 +76,9 @@ class Stage:
 
     def init_stage(self):
         self.platforms = []
-        self.platforms.append( Platform(self.WIDTH*1/4-210/2-15, self.WIDTH*1/4+210/2-15, self.GND_HEIGHT+120) )
-        self.platforms.append( Platform(self.WIDTH*2/4-210/2,    self.WIDTH*2/4-210/2,    self.GND_HEIGHT+210) )
-        self.platforms.append( Platform(self.WIDTH*3/4-210/2+15, self.WIDTH*3/4+210/2+15, self.GND_HEIGHT+120) )
+        self.platforms.append( Platform(self.WIDTH*1/4-210/2-15, self.WIDTH*1/4+210/2-15, self.GND_HEIGHT+130) )
+        self.platforms.append( Platform(self.WIDTH*2/4-210/2,    self.WIDTH*2/4+210/2,    self.GND_HEIGHT+220) )
+        self.platforms.append( Platform(self.WIDTH*3/4-210/2+15, self.WIDTH*3/4+210/2+15, self.GND_HEIGHT+130) )
 
     def update(self):
         pass

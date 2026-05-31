@@ -26,7 +26,8 @@ class ImageAssets:
         # 画像の読み込み
         self.stage = {
             "background": load_image("universe_back.png").convert(),
-            "stage": load_image("stage.png").convert()
+            "stage": load_image("stage.png").convert(),
+            "platform": load_image("platform.png").convert_alpha()
         }
         self.characters = {
             "red": load_image(os.path.join("character", "red.png")).convert_alpha(),
@@ -51,6 +52,9 @@ class GameRenderer:
         self.screen.blit(self.image_assets.stage["background"], (0, 0))
         # ステージの描画
         self.screen.blit(self.image_assets.stage["stage"], (0, self.screen.get_height()-game_state.stage.GND_HEIGHT))
+        # 台の描画
+        for platform in game_state.stage.platforms:
+            self.screen.blit(self.image_assets.stage["platform"], (platform.x[0], self.screen.get_height()-platform.y))
         # キャラクターの描画
         for chara in game_state.characters_list:
             chara_image = self.image_assets.characters[chara.color].copy()
