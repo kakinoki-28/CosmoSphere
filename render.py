@@ -58,7 +58,8 @@ class ImageAssets:
         }
         self.bullet = {
             "liner_bullet": load_image("liner_bullet.png").convert_alpha(),
-            "drone": load_image("drone.png").convert_alpha()
+            "drone": load_image("drone.png").convert_alpha(),
+            "sync_bullet": load_image("sync_bullet.png").convert_alpha()
         }
         self.effect = {
             "airjump": load_image("airjump.png").convert_alpha()
@@ -146,6 +147,10 @@ class GameRenderer:
                 for drone in chara.drone.magazine:
                     if drone.active or drone.wait:
                         blit_center(self.screen, self.image_assets.bullet["drone"], (drone.pos.x, self.screen.get_height()-drone.pos.y))
+                # スキル3:時止め弾
+                for bullet in chara.sync_shot.magazine:
+                    if bullet.display:
+                        blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
                     
         # 描画の反映
         window.blit(self.screen, (0, 0))

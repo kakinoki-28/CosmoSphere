@@ -241,7 +241,7 @@ class Character(GameObject):
 
         #スキル3 KeyDown
         if (new_input.skills[2]==True and self.Input.skills[2]==False):
-            if self.color =="red" and (self.sync_shot.shoot_count==self.sync_shot.BULLET_MAX or not self.action_busy):
+            if self.color =="red" and (self.sync_shot.shoot_count==self.sync_shot.CONST.bullet_max or not self.action_busy):
                 self.sync_shot.shoot()
         #スキル2 KeyUp
         if (self.Input.skills[2]==True and new_input.skills[2]==False):
@@ -1161,6 +1161,7 @@ class SyncBullet(LinerBullet):
 """ 時止め弾（赤スキル3) の設置・同時発射を管理するクラス"""
 class SyncShooter:
     def __init__(self, user):
+        self.CONST = gameconst.SyncShooterConst()
         # 変数
         self.user = user
         self.target = None
@@ -1197,7 +1198,7 @@ class SyncShooter:
         if self.reload_count==0:
             # 弾を設置
             if self.shoot_count < self.CONST.bullet_max:
-                self.magazine.append(SyncBullet(user=self.user, speed=Vector2(1,0)*self.CONST.bullet_speed, CONST=gameconst.SyncBulletConst()))
+                self.magazine.append(SyncBullet(user=self.user, speed=Vector2(1,0)*self.CONST.bullet_speed, const=gameconst.SyncBulletConst()))
                 self.shoot_count+=1
             # 射撃
             else:

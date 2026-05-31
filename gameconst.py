@@ -199,7 +199,7 @@ class DroneManagerConst:
 """ 時止め弾の「弾」の定数 """
 @dataclass
 class SyncBulletConst(LinerBulletConst):
-    name: str = "liner_bullet"          # 弾の名前
+    name: str = "sync_bullet"           # 弾の名前
     hp_max: int = 10                    # 弾の耐性
     alive_frame: int = 60               # 弾が残るフレーム
 
