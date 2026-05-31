@@ -21,6 +21,7 @@ class ImageAssets:
     stage: dict[str, pygame.Surface] = field(default_factory=dict)        # ステージの画像を保持する辞書
     characters: dict[str, pygame.Surface] = field(default_factory=dict)   # キャラクターの画像を保持する辞書
     module: dict[str, pygame.Surface] = field(default_factory=dict)       # キャラが使用する画像を保持する辞書
+    effect: dict[str, pygame.Surface] = field(default_factory=dict)       # エフェクトの画像を保持する辞書
 
     def __post_init__(self):
         # 画像の読み込み
@@ -35,6 +36,9 @@ class ImageAssets:
         }
         self.module = {
             "shield": load_image("shield.png").convert_alpha()
+        }
+        self.effect = {
+            "airjump": load_image("airjump.png").convert_alpha()
         }
 
 def blit_center(dest, source, pos):
@@ -55,6 +59,21 @@ class GameRenderer:
         # 台の描画
         for platform in game_state.stage.platforms:
             self.screen.blit(self.image_assets.stage["platform"], (platform.x[0], self.screen.get_height()-platform.y))
+        
+        # エフェクト表示
+        for chara in game_state.characters_list:
+            for effect in chara.effects:
+                effect_image = self.image_assets.effect[effect.name].copy()
+                # エフェクト別処理
+                if effect.name == "airjump":
+                    effect_image = pygame.transform.smoothscale(effect_image, (20+int(4*effect.count), 8+int(effect.count/2)))
+                    if effect.count >= 4:
+                        effect_image.set_alpha(255-int(240*(effect.count-4)/6))
+                    else:
+                        effect_image.set_alpha(255)
+                self.screen.blit(effect_image, dest=(effect.pos.x-int(effect_image.get_width()/2), self.screen.get_height()-effect.pos.y-int(effect_image.get_height()/2)))
+
+
         # キャラクターの描画
         for chara in game_state.characters_list:
             chara_image = self.image_assets.characters[chara.color].copy()

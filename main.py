@@ -81,7 +81,8 @@ class MainApp:
         clock = pg.time.Clock()
 
         while self.run:
-            clock.tick(POLLING_RATE)
+            #clock.tick(POLLING_RATE)
+            clock.tick_busy_loop(POLLING_RATE)
             self.event_handler()
 
         # 正常終了時処理

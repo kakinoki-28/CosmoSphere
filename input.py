@@ -179,7 +179,6 @@ class InputHandler:
                 self.remove_action("up")
             elif "down" in self.actions and value[1] > -1:
                 self.remove_action("down")
-                print("remove down from hat")
             else:
                 return False      
         return True
