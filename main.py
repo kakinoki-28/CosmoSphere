@@ -21,7 +21,7 @@ class MainApp:
         pg.display.set_caption(self.APP_NAME)
 
         self.Input = InputHandler()
-        self.joysticks = []
+        self.joysticks = {}
 
         self.game_mgr = GameManeger()
         self.game_mgr.init_game()
