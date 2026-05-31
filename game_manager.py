@@ -1,6 +1,7 @@
 from gamelogic import GameState
 from time import perf_counter, sleep
 from ctypes import windll
+from render import GameRenderer
 
 
 """ ゲーム進行の管理 """
@@ -17,6 +18,7 @@ class GameManeger:
 
         self.available_color = ["red", "green"] # 利用可能なキャラの色
         self.state = GameState()
+        self.renderer = GameRenderer()
 
     """ ゲームの初期化 """
     def init_game(self):
@@ -32,6 +34,10 @@ class GameManeger:
     """ キャラの削除 """
     def remove_character(self, character):
         self.state.remove_character(character)
+
+    """ ゲームの描画 """
+    def draw_game(self, window):
+        self.renderer.render(window, self.state)
 
     """ ゲームのメイン処理 """
     def mainloop(self):

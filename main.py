@@ -1,9 +1,12 @@
 import pygame as pg
 from input import InputHandler
+from game_manager import GameManeger
+from threading import Thread
 
 class MainApp:
     SCREENRECT = pg.Rect(0, 0, 1280, 720)
     APP_NAME = "SmashBalls"
+    FPS = 240
 
     def __init__(self):
         pg.init()
@@ -17,10 +20,25 @@ class MainApp:
         self.window = pg.display.set_mode(self.SCREENRECT.size, self.winstyle)
         pg.display.set_caption(self.APP_NAME)
 
-        self.thread_list = []
-
         self.Input = InputHandler()
         self.joysticks = []
+
+        self.game_mgr = GameManeger()
+        self.game_mgr.init_game()
+        self.game_mgr.add_character("red", 0)
+        self.game_thread = Thread(target=self.game_mgr.mainloop, daemon=True)
+        self.game_thread.start()
+
+        display_clock = pg.time.Clock()
+        self.display_thread = Thread(target=self.display_handler, args=(display_clock,), daemon=True)
+        self.display_thread.start()
+
+    def display_handler(self, clock):
+        while self.run:
+            clock.tick(self.FPS)
+            #print(f"FPS: {clock.get_fps():.2f}")
+            self.game_mgr.draw_game(self.window)
+            pg.display.flip()
 
     # イベント処理
     def event_handler(self):
@@ -66,8 +84,9 @@ class MainApp:
             self.event_handler()
 
         # 正常終了時処理
-        for th in self.thread_list:
-            th.join()
+        self.game_mgr.run = False
+        self.display_thread.join()
+        self.game_thread.join()
         print("Bye!")
 
 if __name__ == '__main__':
