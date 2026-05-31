@@ -126,15 +126,21 @@ class GameRenderer:
                 blit_center(self.screen, shield_image, (X, self.screen.get_height()-Y))
         # 攻撃系の描画
         for chara in game_state.characters_list:
+            # 反射した弾の描画
+            for bullet in chara.shield.hitback_bullets:
+                if bullet.display:
+                    blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
             if chara.color == "red":
                 # スキル1:エネルギーガン
-                if chara.energy_gun.status != "wait":
+                if not (chara.energy_gun.status == "wait" or chara.energy_gun.status == "wait_interval"):
                     draw_pie(self.screen, SILVER, (chara.pos.x, self.screen.get_height()-chara.pos.y), 
                              40+10*chara.energy_gun.charge_count/chara.energy_gun.CONST.charge, 
                              round(chara.energy_gun.angle), round(chara.energy_gun.angle_range))
-                    print(chara.energy_gun.angle_range)
+                    if chara.energy_gun.angle == 0:
+                        print(f"status: {chara.energy_gun.status}, charge: {chara.energy_gun.charge_count}, angle: {chara.energy_gun.angle}, angle_range: {chara.energy_gun.angle_range}")
                 for bullet in chara.energy_gun.magazine:
-                    blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
+                    if bullet.display:
+                        blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
                     
         # 描画の反映
         window.blit(self.screen, (0, 0))

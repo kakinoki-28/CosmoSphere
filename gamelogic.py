@@ -14,7 +14,13 @@ def closest(user, obj_list):
     return obj_list[distance_list.index(min(distance_list))]
 
 def angle_between(a:Vector2, b:Vector2):
-    return -(a.rotate(-90).angle_to(b.rotate(-90)))
+    angle_gap = -(a.rotate(-90).angle_to(b.rotate(-90)))
+    if angle_gap>180:
+        angle_gap -= 360
+    elif angle_gap<-180:
+        angle_gap += 360
+    return angle_gap
+ 
 
 
 """ ゲーム状況が再現可能な情報を保存するクラス
@@ -426,7 +432,7 @@ class Character(GameObject):
 
     """ Character傘下にいるオブジェクトの更新を行う """
     def objects_update(self, stage:Stage):
-        self.shield.update()
+        self.shield.update(stage)   # 反射した弾も更新する必要があるため、引数にstageを渡す
         if self.color == "red":
             self.hammer.update()
             self.energy_gun.update(stage)
@@ -568,9 +574,9 @@ class Shield:
                         # 反射位置の調整（互いのキャラが接近中は無効）
                         if self.pos.distance_to(target.user.pos) >= self.radius:
                             if (target.pos-self.pos).length() == 0:
-                                target.pos += Vector2(1,0)*(self.radius+target.radius) - (target.pos-self.pos)
+                                target.pos += Vector2(1,0)*(self.radius+target.CONST.radius) - (target.pos-self.pos)
                             else:
-                                target.pos += (target.pos-self.pos).normalize()*(self.radius+target.radius) - (target.pos-self.pos)
+                                target.pos += (target.pos-self.pos).normalize()*(self.radius+target.CONST.radius) - (target.pos-self.pos)
 
                         # 相手の予測位置へ反射
                         enemy_predict_pos = target.user.pos + target.user.speed - target.pos
@@ -583,15 +589,15 @@ class Shield:
                             target.user.sync_shot.remove_bullet(target)
 
                         target.user = self.user
-                        target.time = 0
+                        target.alive_count = 0
                         target.no_damage_count=8
                         # 反射速度を加算(キャラへ反射)
-                        target.speed = 1.1*target.speed.length()*enemy_predict_pos
+                        target.speed = 1.1*target.speed.length()*enemy_predict_pos.normalize()
 
                 elif type(target)==Drone:
                     target.active = False
 
-    def update(self):
+    def update(self, stage:Stage):
         self.pos = self.user.pos.copy()
         # 発動前
         if self.status == "start_up":
@@ -617,7 +623,7 @@ class Shield:
                 self.reset()
 
         for bullet in self.hitback_bullets:
-            bullet.update()
+            bullet.update(stage)
             if not bullet.active and not bullet.display:
                 self.hitback_bullets.remove(bullet)
 
@@ -666,9 +672,9 @@ class LinerBullet(GameObject):
             # 地面・台との衝突判定
             for circle in self.CONST.hit_circles:
                 foot, top = (self.pos + circle.rel_pos) - Vector2(0, circle.radius), (self.pos + circle.rel_pos) + Vector2(0, circle.radius)
-                last_foot, last_top = foot-self.speed, top-self.speed
+                next_foot, next_top = foot+self.speed, top+self.speed
                 for platform in stage.platforms:
-                    if ((platform.is_below(last_top) and platform.is_above(top)) or (platform.is_above(last_foot) and platform.is_below(foot))):
+                    if (self.pos+circle.rel_pos in platform or (platform.is_below(foot) and platform.is_above(next_top)) or (platform.is_above(top) and platform.is_below(next_foot))):
                         if self.bounced:
                             self.active = False
                         else:
@@ -887,13 +893,15 @@ class EnergyGun:
                 self.magazine.clear()
         if self.interval_count>0:
             self.interval_count -= 1
+            if self.interval_count==0 and self.status=="wait_interval":
+                self.status = "wait_shooting"
 
         if self.status=="lockon" or self.status=="wait_shooting":
             self.startup_count += 1
             #角度追尾
             target_vector = self.target.pos-self.user.pos
-            target_angle = angle_between(Vector2(0,1).rotate(-self.angle), target_vector)
-            if target_vector[0]>=0:
+            target_angle = angle_between(Vector2(0,1), target_vector)
+            if target_vector.x>=0:
                 self.angle = round( lerp(90, target_angle, self.startup_count/self.CONST.startup) )
             else:
                 self.angle = round( lerp(-90, target_angle, self.startup_count/self.CONST.startup) )
@@ -913,7 +921,7 @@ class EnergyGun:
                 self.angle += angle_gap
             if self.charge_count<self.CONST.charge:
                 self.charge_count += 1
-                self.angle_range = round(lerp(self.CONST.angle_range_min, self.CONST.angle_range_max, 1-self.charge_count/self.CONST.charge))
+                self.angle_range = round(lerp(self.CONST.angle_range_max, self.CONST.angle_range_min, self.charge_count/self.CONST.charge))
 
         for each in self.magazine:
             each.update(stage)
@@ -922,10 +930,13 @@ class EnergyGun:
         if self.reload_count==0:
             self.status = "lockon"
             self.user.action_busy = True
-            self.angle = 0
             self.target = closest(self.user, self.user.target_list)
             if self.target is None:
                 self.target = self.user
+            if self.target.pos.x >= self.user.pos.x:
+                self.angle = 90
+            else:
+                self.angle = -90
 
     def charge_start(self):
         if self.status=="wait_shooting":
@@ -935,8 +946,10 @@ class EnergyGun:
 
     def shoot(self):
         if self.reload_count==0:
-            if self.status=="lockon" or self.interval_count>0:        #ロックオン,インターバル中は射撃待機
+            if self.status=="lockon":        #ロックオン中は射撃待機
                 self.status = "wait_shooting"
+            elif self.interval_count>0:
+                self.status = "wait_interval"
             elif self.status=="charge" or (self.status=="wait_shooting" and self.interval_count==0):
                 charge_level = (self.charge_count/self.CONST.charge)**2
 

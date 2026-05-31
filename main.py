@@ -26,6 +26,12 @@ class MainApp:
         self.game_mgr = GameManeger()
         self.game_mgr.init_game()
         self.game_mgr.add_character("red", 0)
+        # デバッグ用の標的キャラの追加
+        self.game_mgr.add_character("red", 1)
+        shield_set = InputHandler()
+        shield_set.set_input(direction=pg.Vector2(0,0), skills=[False,False,False], attack=False, shield=True)
+        self.game_mgr.regist_input(1, shield_set)
+
         self.game_thread = Thread(target=self.game_mgr.mainloop, daemon=True)
         self.game_thread.start()
 

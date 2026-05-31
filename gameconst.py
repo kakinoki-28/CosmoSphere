@@ -53,8 +53,10 @@ class ShieldConst:
 class LinerBulletConst:
     name: str = "liner_bullet"          # 弾の名前
     hp_max: int = 10                    # 弾の耐性
-    alive_frame: int = 40               # 弾が残るフレーム
+    radius: int = 10                    # 当たり判定の半径
 
+
+    alive_frame: int = 40               # 弾が残るフレーム
     combo_interval: int = 0             # コンボ判定(ダメージ減算)が続くフレーム(0でコンボ無効)
     no_damage_frame: int = 16           # 当たったキャラが獲得する無敵フレーム
     hit_stop: int = 6                   # ヒットストップするフレーム
@@ -143,19 +145,19 @@ class EnergyBulletConst(LinerBulletConst):
 @dataclass
 class EnergyGunConst:
     startup: int = 12           # ボタンを押してから最短で弾が発射できるまでのフレーム
-    charge: int = 32            # 最大チャージまでのフレーム
+    charge: int = 24            # 最大チャージまでのフレーム
     interval: int = 16          # 弾が出る最短のフレーム
     reload: int = 96            # 弾の装填にかかるフレーム
 
     bullet_max: int = 7         # 1マガジンで撃てる最大の弾
 
-    angle_range_max: int = 14   # 溜めない状態でブレる角度の最大値
+    angle_range_max: int = 15   # 溜めない状態でブレる角度の最大値
     angle_range_min: int = 1    # 最大溜め状態でブレる角度の最大値
-    speed_min: int = 14         # 溜めない状態の速度
-    speed_max: int = 24         # 最大溜め状態の速度
+    speed_min: int = 12         # 溜めない状態の速度
+    speed_max: int = 25         # 最大溜め状態の速度
     damage_min: int = 5         # 溜めない状態のダメージ
     damage_max: int = 20        # 最大溜め状態のダメージ
-    alive_min: int = 18         # 溜めない状態で弾が残るフレーム
+    alive_min: int = 20         # 溜めない状態で弾が残るフレーム
     alive_max: int = 40         # 最大溜め状態で弾が残るフレーム
 
     rotate_speed: float = 360/64    # 照準を合わせる角速度
