@@ -1056,7 +1056,7 @@ class Drone(GameObject):
         self.active = True
         self.wait = False
         angle = angle_between(self.target.pos-self.pos, Vector2(0,1)) + randint(-angle_range,angle_range)
-        self.speed = self.CONST.speed_max*Vector2(0, 1).rotate(-angle)
+        self.speed = self.CONST.speed_max*Vector2(0, 1).rotate(angle)
 
 
 """ ドローン(赤スキル2)の投擲・射出を管理するクラス """
@@ -1103,7 +1103,7 @@ class DroneManager:
         # 投擲
         if self.status == "throw":
             # 投擲表現
-            self.throwing_drone.pos.rotate_ip(270/self.CONST.throw_time)
+            self.throwing_drone.pos = (self.throwing_drone.target.pos-self.user.pos).normalize().rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
             self.throw_count += 1
 
             # 投げ終わりで射出
@@ -1114,7 +1114,9 @@ class DroneManager:
                 self.status = "wait"
                 self.user.action_busy = False
                 self.interval_count = self.CONST.interval
-                if self.shoot_count==self.CONST.drone_max:
+                self.shoot_count += 1
+                if self.shoot_count >= self.CONST.drone_max:
+                    self.shoot_count = 0
                     self.reload_count = self.CONST.reload
         elif self.interval_count>0:
             self.interval_count -= 1
@@ -1133,9 +1135,9 @@ class DroneManager:
             self.magazine.append(self.throwing_drone)
             self.user.action_busy = True
             if (target.pos-self.user.pos).length()!=0:
-                self.throwing_drone.pos = (target.pos-self.user.pos).normalize()*self.user.radius
+                self.throwing_drone.pos = (target.pos-self.user.pos).normalize()*self.user.radius + self.user.pos
             else:
-                self.throwing_drone.pos = Vector2(1,0)*self.user.radius
+                self.throwing_drone.pos = Vector2(1,0)*self.user.radius + self.user.pos
 
 
 """ 時止め弾：複数の直進弾を空中に設置し、最後に全ての弾を同時に発射する(赤スキル3) """

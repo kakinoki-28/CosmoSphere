@@ -57,7 +57,8 @@ class ImageAssets:
             "hammer": load_image("hammer.png").convert_alpha()
         }
         self.bullet = {
-            "liner_bullet": load_image("liner_bullet.png").convert_alpha()
+            "liner_bullet": load_image("liner_bullet.png").convert_alpha(),
+            "drone": load_image("drone.png").convert_alpha()
         }
         self.effect = {
             "airjump": load_image("airjump.png").convert_alpha()
@@ -141,6 +142,10 @@ class GameRenderer:
                 for bullet in chara.energy_gun.magazine:
                     if bullet.display:
                         blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
+                # スキル2:ドローン
+                for drone in chara.drone.magazine:
+                    if drone.active or drone.wait:
+                        blit_center(self.screen, self.image_assets.bullet["drone"], (drone.pos.x, self.screen.get_height()-drone.pos.y))
                     
         # 描画の反映
         window.blit(self.screen, (0, 0))
