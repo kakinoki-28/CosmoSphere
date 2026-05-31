@@ -516,7 +516,7 @@ class Shield:
         if self.status != "guard":
             self.status = "start_up"
             if self.radius != 0:
-                self.startup_count = self.radius/self.CONST.radius_max*self.CONST.startup
+                self.startup_count = round(self.radius/self.CONST.radius_max*self.CONST.startup)
         self.user.action_busy = True
 
     """ 入力終了時 """
@@ -602,8 +602,8 @@ class Shield:
         # 発動前
         if self.status == "start_up":
             if self.startup_count < self.CONST.startup:
-                self.startup_count += 1
                 self.radius = lerp(self.CONST.radius_first, self.CONST.radius_max, self.startup_count/self.CONST.startup)
+                self.startup_count += 1
             else:
                 self.status = "guard"
                 self.user.restrict_jump = True
