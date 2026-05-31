@@ -146,6 +146,7 @@ class Character(GameObject):
         self.effects = []
         self.sounds = []
         self.Input = InputHandler()
+        self.InputActions = []
 
         # 戦闘機能
         self.shield = Shield(user=self)
@@ -196,6 +197,9 @@ class Character(GameObject):
 
     """ 入力(InputHandler)が更新される処理 """
     def input_update(self, new_input:InputHandler):
+        # ジャンプ
+        if (new_input.direction.y==1 and self.Input.direction.y!=1):
+            self.InputActions.append("jump")
 
         #近接攻撃 KeyDown
         if (new_input.attack==True and self.Input.attack==False) and (not self.action_busy or self.shield.status=="recovery"):
@@ -237,7 +241,7 @@ class Character(GameObject):
         if (self.Input.skills[2]==True and new_input.skills[2]==False):
             pass
 
-        self.Input = new_input
+        self.Input = new_input.copy()
 
     """ 音声情報の追加 """
     def set_sound(self, name):
@@ -326,7 +330,7 @@ class Character(GameObject):
                         self.speed.x -= self.CONST.accelarate
                 self.speed.x = max(self.speed.x, -self.CONST.speed_max)
             # ジャンプ
-            if self.Input.direction.y==1 and self.hopping==False:
+            if "jump" in self.InputActions and self.hopping==False:
                 self.jump_interval = self.CONST.next_jump_interval
                 if self.restrict_jump:
                     self.speed.y = self.CONST.restrict_jump
@@ -372,7 +376,7 @@ class Character(GameObject):
                 elif self.speed.x<0:
                     self.speed.x += grip_ratio
             # 空中ジャンプ
-            if self.Input.direction.y==1 and not self.double_jumped and self.jump_interval==0 and not self.hopping and not self.restrict_jump:
+            if "jump" in self.InputActions and not self.double_jumped and self.jump_interval==0 and not self.hopping and not self.restrict_jump:
                 self.speed.y = self.CONST.air_jump
                 self.double_jumped = True
                 self.effects.append(Effect("airjump", self.pos))
@@ -417,6 +421,8 @@ class Character(GameObject):
             else:
                 self.on_ground = False
                 self.on_platform = False
+
+        self.InputActions.clear()
 
     """ Character傘下にいるオブジェクトの更新を行う """
     def objects_update(self, stage:Stage):

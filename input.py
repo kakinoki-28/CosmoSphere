@@ -20,6 +20,15 @@ class InputHandler:
 
     def __str__(self):
         return f"{self.direction}, {self.skills}, attack={self.attack}, shield={self.shield}"
+    
+    def copy(self):
+        new_handler = InputHandler()
+        new_handler.direction = self.direction.copy()
+        new_handler.skills = self.skills.copy()
+        new_handler.attack = self.attack
+        new_handler.shield = self.shield
+        new_handler.actions = self.actions.copy()
+        return new_handler
 
     def set_input(self, direction:Vector2, skills:list[bool], attack:bool, shield:bool):
         self.direction = direction
