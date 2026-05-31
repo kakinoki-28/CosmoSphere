@@ -597,7 +597,7 @@ class Shield:
         if self.status == "start_up":
             if self.startup_count < self.CONST.startup:
                 self.startup_count += 1
-                self.radius = lerp(self.radius_first, self.CONST.radius_max, self.CONST.startup/self.startup_count)
+                self.radius = lerp(self.CONST.radius_first, self.CONST.radius_max, self.startup_count/self.CONST.startup)
             else:
                 self.status = "guard"
                 self.user.restrict_jump = True
@@ -612,7 +612,7 @@ class Shield:
         elif self.status == "recovery":
             if self.recovery_count < self.CONST.recovery:
                 self.recovery_count += 1
-                self.radius = lerp(self.CONST.radius_max, self.user.radius, self.CONST.startup/self.startup_count)
+                self.radius = lerp(self.CONST.radius_max, self.user.radius, self.recovery_count/self.CONST.recovery)
             else:
                 self.reset()
 
