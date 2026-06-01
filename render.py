@@ -26,7 +26,7 @@ def draw_pie(screen, color, pos, radius, angle, angle_range):
         x = pos[0]+round(radius*math.sin(n*math.pi/180))
         y = pos[1]-round(radius*math.cos(n*math.pi/180))
         p.append((x, y))
-    pygame.draw.polygon(screen, color, p)
+    pygame.gfxdraw.filled_polygon(screen, p, color)
     pygame.gfxdraw.aapolygon(screen, p, color)
 
 """ 画像Surfaceを保持するクラス """

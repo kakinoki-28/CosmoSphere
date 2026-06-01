@@ -125,7 +125,7 @@ class Character(GameObject):
         self.radius = self.CONST.radius
 
         self.id = my_id
-        GameObject.__init__( self, Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius), Vector2(0,0) )
+        GameObject.__init__( self, Vector2(Stage.WIDTH/4, Stage.GND_HEIGHT+self.radius*2), Vector2(0,5) )
 
         self.on_ground = True       # 接地判定（台上もTrue）
         self.on_platform = False    # 台上の判定
