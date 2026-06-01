@@ -816,7 +816,7 @@ class Hammer:
 
     def attack(self):
         for circle in self.CONST.hit_circles:
-            pos = self.offset + circle.rel_pos.rotate(-1*self.angle)
+            pos = self.user.pos + self.offset + circle.rel_pos.rotate(-self.angle)
             damage_ratio = circle.damage/self.CONST.hit_circles[0].damage
             # ヒット処理
             for enemy in self.user.target_list:
@@ -831,6 +831,7 @@ class Hammer:
                         # ヒットストップ処理
                         target.set_stop(self.CONST.hit_stop*damage_ratio+self.CONST.hit_const_stop, self.CONST.shake*damage_ratio)
                         self.user.set_stop(self.CONST.self_hit_stop*damage_ratio, self.CONST.self_shake*damage_ratio)
+                        print(f"Hammer Hit! Hit stop: {target.stop_frame}")
                         # 吹っ飛ばし処理
                         vector = self.CONST.blow_vector
                         if self.direction == "left":
