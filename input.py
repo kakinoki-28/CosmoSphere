@@ -1,5 +1,5 @@
 import pygame as pg
-from pygame.math import Vector2
+from pygame.math import Vector2, clamp
 import configparser
 
 class InputHandler:
@@ -54,7 +54,7 @@ class InputHandler:
         self.attack = False
         self.shield = False
         self.skills = [False] * 3
-        for action in self.actions:
+        for action, origin in self.actions:
             if action == "up":
                 self.direction += Vector2(0,1)
             elif action == "down":
@@ -69,21 +69,23 @@ class InputHandler:
                 self.attack = True
             elif action == "shield":
                 self.shield = True
+        self.direction.x = clamp(self.direction.x, -1, 1)
+        self.direction.y = clamp(self.direction.y, -1, 1)
 
-    def add_action(self, action):
-        self.actions.append(action)
+    def add_action(self, action:str, origin:str):
+        self.actions.append((action, origin))
         self.decode_actions()
 
-    def remove_action(self, action):
-        self.actions.remove(action)
+    def remove_action(self, action:str, origin:str):
+        self.actions.remove((action, origin))
         self.decode_actions()
 
     """ キーボード入力からアクションへ変換 """
     def keydown(self, key):
         if pg.key.name(key) in self.config["KEY"].values():
             for action in [k for k, v in self.config["KEY"].items() if v==pg.key.name(key)]:
-                if not action in self.actions:
-                    self.add_action(action)
+                if not (action, f"key_{key}") in self.actions:
+                    self.add_action(action, f"key_{key}")
             return True
         else:
             return False
@@ -91,8 +93,8 @@ class InputHandler:
     def keyup(self, key):
         if pg.key.name(key) in self.config["KEY"].values():
             for action in [k for k, v in self.config["KEY"].items() if v==pg.key.name(key)]:
-                if action in self.actions:
-                    self.remove_action(action)
+                if (action, f"key_{key}") in self.actions:
+                    self.remove_action(action, f"key_{key}")
             return True
         else:
             return False
@@ -100,16 +102,16 @@ class InputHandler:
     """ コントローラーボタン入力からアクションへ変換 """
     def buttondown(self, button):
         action = self.config["JOYSTICK"][f"Button{button}"]
-        if action!="" and (not action in self.actions):
-            self.add_action(action)
+        if action!="" and (not (action, f"button_{button}") in self.actions):
+            self.add_action(action, f"button_{button}")
             return True
         else:
             return False
 
     def buttonup(self, button):
         action = self.config["JOYSTICK"][f"Button{button}"]
-        if action!="" and action in self.actions:
-            self.remove_action(action)
+        if action!="" and (action, f"button_{button}") in self.actions:
+            self.remove_action(action, f"button_{button}")
             return True
         else:
             return False
@@ -119,35 +121,35 @@ class InputHandler:
         action = self.config["JOYSTICK"][f"Axis{axis}"]
         threshold = float(self.config["JOYSTICK"]["threshold"])
         if action=="0":
-            if (not "right" in self.actions) and value >= threshold:
-                self.add_action("right")
-            elif (not "left" in self.actions) and value <= -threshold:
-                self.add_action("left")
-            elif "right" in self.actions and value < threshold:
-                self.remove_action("right")
-            elif "left" in self.actions and value > -threshold:
-                self.remove_action("left")
+            if (not ("right", f"axis_{axis}") in self.actions) and value >= threshold:
+                self.add_action("right", f"axis_{axis}")
+            elif (not ("left", f"axis_{axis}") in self.actions) and value <= -threshold:
+                self.add_action("left", f"axis_{axis}")
+            elif ("right", f"axis_{axis}") in self.actions and value < threshold:
+                self.remove_action("right", f"axis_{axis}")
+            elif ("left", f"axis_{axis}") in self.actions and value > -threshold:
+                self.remove_action("left", f"axis_{axis}")
             else:
                 return False
             return True
         elif action=="1":
-            if (not "down" in self.actions) and value >= threshold:
-                self.add_action("down")
-            elif (not "up" in self.actions) and value <= -threshold:
-                self.add_action("up")
-            elif "down" in self.actions and value < threshold:
-                self.remove_action("down")
-            elif "up" in self.actions and value > -threshold:
-                self.remove_action("up")
+            if (not ("down", f"axis_{axis}") in self.actions) and value >= threshold:
+                self.add_action("down", f"axis_{axis}")
+            elif (not ("up", f"axis_{axis}") in self.actions) and value <= -threshold:
+                self.add_action("up", f"axis_{axis}")
+            elif ("down", f"axis_{axis}") in self.actions and value < threshold:
+                self.remove_action("down", f"axis_{axis}")
+            elif ("up", f"axis_{axis}") in self.actions and value > -threshold:
+                self.remove_action("up", f"axis_{axis}")
             else:
                 return False
             return True
         elif action!="":
             depth = float(self.config["JOYSTICK"]["depth"])
-            if (not action in self.actions) and value >= depth:
-                self.add_action(action)
-            elif action in self.actions and value < depth:
-                self.remove_action(action)
+            if (not (action, f"axis_{axis}") in self.actions) and value >= depth:
+                self.add_action(action, f"axis_{axis}")
+            elif (action, f"axis_{axis}") in self.actions and value < depth:
+                self.remove_action(action, f"axis_{axis}")
             else:
                 return False
             return True
@@ -158,22 +160,22 @@ class InputHandler:
     def hatmove(self, hat, value):
         using = bool(self.config["JOYSTICK"][f"Hat{hat}"])
         if using:
-            if (not "right" in self.actions) and value[0] == 1:
-                self.add_action("right")
-            elif (not "left" in self.actions) and value[0] == -1:
-                self.add_action("left")
-            elif "right" in self.actions and value[0] < 1:
-                self.remove_action("right")
-            elif "left" in self.actions and value[0] > -1:
-                self.remove_action("left")
-            elif (not "up" in self.actions) and value[1] == 1:
-                self.add_action("up")
-            elif (not "down" in self.actions) and value[1] == -1:
-                self.add_action("down")
-            elif "up" in self.actions and value[1] < 1:
-                self.remove_action("up")
-            elif "down" in self.actions and value[1] > -1:
-                self.remove_action("down")
+            if (not ("right", f"hat_{hat}") in self.actions) and value[0] == 1:
+                self.add_action("right", f"hat_{hat}")
+            elif (not ("left", f"hat_{hat}") in self.actions) and value[0] == -1:
+                self.add_action("left", f"hat_{hat}")
+            elif ("right", f"hat_{hat}") in self.actions and value[0] < 1:
+                self.remove_action("right", f"hat_{hat}")
+            elif ("left", f"hat_{hat}") in self.actions and value[0] > -1:
+                self.remove_action("left", f"hat_{hat}")
+            elif (not ("up", f"hat_{hat}") in self.actions) and value[1] == 1:
+                self.add_action("up", f"hat_{hat}")
+            elif (not ("down", f"hat_{hat}") in self.actions) and value[1] == -1:
+                self.add_action("down", f"hat_{hat}")
+            elif ("up", f"hat_{hat}") in self.actions and value[1] < 1:
+                self.remove_action("up", f"hat_{hat}")
+            elif ("down", f"hat_{hat}") in self.actions and value[1] > -1:
+                self.remove_action("down", f"hat_{hat}")
             else:
                 return False      
         return True
