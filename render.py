@@ -101,7 +101,6 @@ class GameRenderer:
         # キャラクターの描画
         for chara in game_state.characters_list:
             chara_image = self.image_assets.character[chara.color].copy()
-            X, Y = round(chara.pos.x), round(chara.pos.y)
             # 無敵時の点滅処理
             if chara.no_damage_count>0:
                 ratio = 1-abs(chara.no_damage_count%33-16)/16
@@ -118,7 +117,8 @@ class GameRenderer:
             else:
                 shake_x = shake_y = 0
             # キャラの描画
-            blit_center(self.screen, chara_image, (X+shake_x, self.screen.get_height()-Y+shake_y))
+            X, Y = round(chara.pos + (shake_x, shake_y))
+            blit_center(self.screen, chara_image, (X, self.screen.get_height()-Y))
 
             # シールド
             if chara.shield.status != "wait":
@@ -133,6 +133,14 @@ class GameRenderer:
                 if bullet.display:
                     blit_center(self.screen, self.image_assets.bullet[bullet.CONST.name], (bullet.pos.x, self.screen.get_height()-bullet.pos.y))
             if chara.color == "red":
+                # 近接攻撃の描画
+                if chara.hammer.active:
+                    hammer_image = self.image_assets.melee["hammer"].copy()
+                    if chara.hammer.angle != 0:
+                        hammer_image = pygame.transform.rotozoom(hammer_image, -chara.hammer.angle, 1)
+                    root_pos = round(chara.pos)+(chara.hammer.offset)
+                    hammer_pos = root_pos+pygame.Vector2(0, hammer_image.get_height()//2).rotate(-chara.hammer.angle)
+                    blit_center(self.screen, hammer_image, (hammer_pos.x, self.screen.get_height()-hammer_pos.y))
                 # スキル1:エネルギーガン
                 if not (chara.energy_gun.status == "wait" or chara.energy_gun.status == "wait_interval"):
                     draw_pie(self.screen, SILVER, (chara.pos.x, self.screen.get_height()-chara.pos.y), 

@@ -4,7 +4,7 @@ from pygame import Vector2
 """ 攻撃判定の定義 """
 @dataclass
 class Collision_Circle:
-    rel_pos: Vector2 = Vector2(0,0)     # 相対座標
+    rel_pos: Vector2 = field(default_factory=Vector2)     # 相対座標
     radius: int = 0                     # 攻撃判定の半径
     damage: int = 0                     # この判定のダメージ
 
@@ -96,7 +96,7 @@ class HammerConst:
     self_obj_stop: int = 6          # 他オブジェクトに当たった際のヒットストップ(固定)
     self_obj_shake: int = 6         # 他オブジェクトに当たった際の振動する大きさ
 
-    blow_vector: Vector2 = Vector2(21, 16)      # 受けたキャラが吹っ飛ばされる速度
+    blow_vector: Vector2 = field(default_factory=lambda: Vector2(21, 16))      # 受けたキャラが吹っ飛ばされる速度
 
 
     hit_circles: list[Collision_Circle] = field(default_factory=list)

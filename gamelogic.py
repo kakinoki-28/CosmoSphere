@@ -777,8 +777,11 @@ class Hammer:
             self.reset()
             self.active = self.user.action_busy = True
             target = closest(self.user, self.user.target_list)
+            self.offset, self.angle = self.CONST.frame_data[0][0], self.CONST.frame_data[0][1]
             if isinstance(target, Character) and target.pos.x < self.user.pos.x:
                 self.direction = "left"
+                self.offset.x *= -1
+                self.angle *= -1
             else:
                 self.direction = "right"
 
@@ -814,7 +817,7 @@ class Hammer:
     def attack(self):
         for circle in self.CONST.hit_circles:
             pos = self.offset + circle.rel_pos.rotate(-1*self.angle)
-            damage_ratio = circle.damage/self.CONST.head_damage
+            damage_ratio = circle.damage/self.CONST.hit_circles[0].damage
             # ヒット処理
             for enemy in self.user.target_list:
                 # 相手のオブジェクトと衝突判定
