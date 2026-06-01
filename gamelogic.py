@@ -444,7 +444,7 @@ class Character(GameObject):
         hit_objects = []
         hit_objects += self.shield.hit_check(pos, r, anti_bullet=anti_bullet, anti_shield=anti_shield)
 
-        if self.shield.status != "guard" and self.pos.distance_to(pos) < self.radius+r:
+        if self.shield.status != "guard" and self.pos.distance_to(pos) < self.radius+r and (self.no_damage_count==0 or self.combo_count>0):
             hit_objects.append(self)
 
         if self.color == "red":
