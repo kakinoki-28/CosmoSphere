@@ -49,39 +49,34 @@ class InputHandler:
         return self.shield
 
     """ 各アクションから抽象入力へ変換 """
+    def decode_actions(self):
+        self.direction = Vector2(0, 0)
+        self.attack = False
+        self.shield = False
+        self.skills = [False] * 3
+        for action in self.actions:
+            if action == "up":
+                self.direction += Vector2(0,1)
+            elif action == "down":
+                self.direction += Vector2(0,-1)
+            elif action == "left":
+                self.direction += Vector2(-1,0)
+            elif action == "right":
+                self.direction += Vector2(1,0)
+            elif action[:5] == "skill":
+                self.skills[int(action[5])-1]=True
+            elif action == "attack":
+                self.attack = True
+            elif action == "shield":
+                self.shield = True
+
     def add_action(self, action):
         self.actions.append(action)
-        if action == "up" and self.direction[1]<=0:
-            self.direction += Vector2(0,1)
-        elif action == "down" and self.direction[1]>=0:
-            self.direction += Vector2(0,-1)
-        elif action == "left" and self.direction[0]>=0:
-            self.direction += Vector2(-1,0)
-        elif action == "right" and self.direction[0]<=0:
-            self.direction += Vector2(1,0)
-        elif action[:5] == "skill":
-            self.skills[int(action[5])-1]=True
-        elif action == "attack":
-            self.attack = True
-        elif action == "shield":
-            self.shield = True
+        self.decode_actions()
 
     def remove_action(self, action):
         self.actions.remove(action)
-        if action == "up" and self.direction[1]>0:
-            self.direction -= Vector2(0,1)
-        elif action == "down" and self.direction[1]<0:
-            self.direction -= Vector2(0,-1)
-        elif action == "left" and self.direction[0]<0:
-            self.direction -= Vector2(-1,0)
-        elif action == "right" and self.direction[0]>0:
-            self.direction -= Vector2(1,0)
-        elif action[:5] == "skill":
-            self.skills[int(action[5])-1]=False
-        elif action == "attack":
-            self.attack = False
-        elif action == "shield":
-            self.shield = False
+        self.decode_actions()
 
     """ キーボード入力からアクションへ変換 """
     def keydown(self, key):
