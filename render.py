@@ -138,9 +138,18 @@ class GameRenderer:
                     hammer_image = self.image_assets.melee["hammer"].copy()
                     if chara.hammer.angle != 0:
                         hammer_image = pygame.transform.rotozoom(hammer_image, -chara.hammer.angle, 1)
-                    root_pos = round(chara.pos)+(chara.hammer.offset)
-                    hammer_pos = root_pos+pygame.Vector2(0, hammer_image.get_height()//2).rotate(-chara.hammer.angle)
+                    root_pos = chara.pos+chara.hammer.offset
+                    if chara.hammer.motion == "attack":
+                        if chara.hammer.direction == "left":
+                            root_pos.x -= (1-chara.hammer.distance_ratio)*(chara.hammer.offset.x + chara.hammer.CONST.frame_data[chara.hammer.motion_count-1][0].x)
+                        else:
+                            root_pos.x -= (1-chara.hammer.distance_ratio)*(chara.hammer.offset.x - chara.hammer.CONST.frame_data[chara.hammer.motion_count-1][0].x)
+                        root_pos.y -= (1-chara.hammer.distance_ratio)*(chara.hammer.offset.y - chara.hammer.CONST.frame_data[chara.hammer.motion_count-1][0].y)
+                    hammer_pos = round( root_pos+pygame.Vector2(0, hammer_image.get_height()//2).rotate(-chara.hammer.angle) )
+                    
                     blit_center(self.screen, hammer_image, (hammer_pos.x, self.screen.get_height()-hammer_pos.y))
+
+
                 # スキル1:エネルギーガン
                 if not (chara.energy_gun.status == "wait" or chara.energy_gun.status == "wait_interval"):
                     draw_pie(self.screen, SILVER, (chara.pos.x, self.screen.get_height()-chara.pos.y), 

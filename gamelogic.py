@@ -740,6 +740,8 @@ class Hammer:
         self.offset = (0,0)
         self.angle = 0
 
+        self.distance_ratio = 1
+
     @property
     def frame(self):
         if self.active:
@@ -777,11 +779,12 @@ class Hammer:
             self.reset()
             self.active = self.user.action_busy = True
             target = closest(self.user, self.user.target_list)
-            self.offset, self.angle = self.CONST.frame_data[0][0], self.CONST.frame_data[0][1]
+            self.offset, self.angle = self.CONST.frame_data[0][0].copy(), self.CONST.frame_data[0][1]
             if isinstance(target, Character) and target.pos.x < self.user.pos.x:
                 self.direction = "left"
                 self.offset.x *= -1
                 self.angle *= -1
+                print(f"left  offset: {self.offset}, angle: {self.angle}")
             else:
                 self.direction = "right"
 
@@ -789,7 +792,7 @@ class Hammer:
         if self.active and self.user.stop_frame == 0:
             #更新
             self.motion_count += 1
-            self.offset = self.CONST.frame_data[self.motion_count][0]
+            self.offset = self.CONST.frame_data[self.motion_count][0].copy()
             self.angle = self.CONST.frame_data[self.motion_count][1]
 
             if self.direction == "left":
@@ -815,6 +818,7 @@ class Hammer:
                 self.interval -= 1
 
     def attack(self):
+        self.distance_ratio = 1
         for circle in self.CONST.hit_circles:
             pos = self.user.pos + self.offset + circle.rel_pos.rotate(-self.angle)
             damage_ratio = circle.damage/self.CONST.hit_circles[0].damage
@@ -825,25 +829,33 @@ class Hammer:
                     target.damage_process(circle.damage)
                     #相手に当たった
                     if type(target) == Character:
+                        # 距離割合の計算（食い込み補正のため）
+                        self.distance_ratio = pos.distance_to(target.pos)/(circle.radius+target.radius)
                         # 無敵処理
                         target.no_damage_count = self.CONST.no_damage_frame
                         target.after_blow_count = self.CONST.after_blow_frame
                         # ヒットストップ処理
                         target.set_stop(self.CONST.hit_stop*damage_ratio+self.CONST.hit_const_stop, self.CONST.shake*damage_ratio)
                         self.user.set_stop(self.CONST.self_hit_stop*damage_ratio, self.CONST.self_shake*damage_ratio)
-                        print(f"Hammer Hit! Hit stop: {target.stop_frame}")
                         # 吹っ飛ばし処理
-                        vector = self.CONST.blow_vector
+                        vector = self.CONST.blow_vector.copy()
                         if self.direction == "left":
                             vector.x *= -1
                         target.speed += vector
                     #シールドに当たった
                     elif type(target) == Shield:
+                        # 距離割合の計算（食い込み補正のため）
+                        self.distance_ratio = pos.distance_to(target.pos)/(circle.radius+target.radius)
                         # ヒットストップ処理
                         target.user.set_stop(self.CONST.shield_stop*damage_ratio+self.CONST.shield_const_stop, self.CONST.shield_shake*damage_ratio)
                         self.user.set_stop(self.CONST.shield_stop*damage_ratio, self.CONST.shield_self_shake*damage_ratio)
                     #他オブジェクトとの衝突
                     else:
+                        # 距離割合の計算（食い込み補正のため）
+                        for target_circle in target.CONST.hit_circles:
+                            if pos.distance_to(target.pos+target_circle.rel_pos) < circle.radius+target_circle.radius:
+                                self.distance_ratio = pos.distance_to(target.pos+target_circle.rel_pos)/(circle.radius+target_circle.radius)
+                                break
                         # ヒットストップ処理
                         self.user.set_stop(self.CONST.self_obj_stop, self.CONST.self_obj_shake)
 
