@@ -89,10 +89,15 @@ class InputHandler:
                     if not (action, "common") in self.actions:
                         self.add_action(action, "common")
                         return True
+                    else:
+                        return False
                 else:
                     if not (action, f"key_{key}") in self.actions:
                         self.add_action(action, f"key_{key}")
                         return True
+                    else:
+                        return False
+                        
         else:
             return False
 
@@ -102,9 +107,13 @@ class InputHandler:
                 if action in self.ATTACK_ACTIONS:
                     if (action, "common") in self.actions:
                         self.remove_action(action, "common")
+                    else:
+                        return False
                 else:
                     if (action, f"key_{key}") in self.actions:
                         self.remove_action(action, f"key_{key}")
+                    else:
+                        return False
             return True
         else:
             return False
