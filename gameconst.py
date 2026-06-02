@@ -81,20 +81,20 @@ class HammerConst:
 
     """ キャラクターに対しての攻撃はダメージの倍率に応じてストップフレームが変動（柄ヒットは半分）
         ただし、ダメージが減少しても有利フレームが少なくならないように固定ストップフレームを設定 """
-    hit_stop: int = 12              # 被攻撃時にヒットストップするフレーム
-    self_hit_stop: int = 14         # 攻撃時にヒットストップするフレーム
-    hit_const_stop: int = 0         # シールド被攻撃時に固定で追加ストップするフレーム
-    shake: int = 16                 # 被攻撃時にストップ時振動する大きさ
+    hit_stop: int = 15              # 被攻撃時にヒットストップするフレーム
+    self_hit_stop: int = 12         # 攻撃時にヒットストップするフレーム
+    hit_const_stop: int = 4         # 被攻撃時に固定で追加ストップするフレーム
+    shake: int = 15                 # 被攻撃時にストップ時振動する大きさ
     self_shake: int = 3             # 攻撃時にストップ時振動する大きさ
 
-    shield_stop: int = 8            # シールド被攻撃時にヒットストップするフレーム
-    self_shield_stop: int = 8       # シールド攻撃時にヒットストップするフレーム
+    shield_stop: int = 10           # シールド被攻撃時にヒットストップするフレーム
+    self_shield_stop: int = 10      # シールド攻撃時にヒットストップするフレーム
     shield_const_stop: int = 8      # シールド被攻撃時に固定で追加ストップするフレーム
     shield_shake: int = 10          # シールド被攻撃時にストップ時振動する大きさ
-    shield_self_shake: int = 10     # シールド攻撃時にストップ時振動する大きさ
+    shield_self_shake: int = 3      # シールド攻撃時にストップ時振動する大きさ
 
     self_obj_stop: int = 6          # 他オブジェクトに当たった際のヒットストップ(固定)
-    self_obj_shake: int = 6         # 他オブジェクトに当たった際の振動する大きさ
+    self_obj_shake: int = 3         # 他オブジェクトに当たった際の振動する大きさ
 
     blow_vector: Vector2 = field(default_factory=lambda: Vector2(21, 16))      # 受けたキャラが吹っ飛ばされる速度
 
@@ -129,8 +129,8 @@ class EnergyBulletConst(LinerBulletConst):
 
     combo_interval: int = 0             # コンボ判定(ダメージ減算)が続くフレーム(0でコンボ無効)
     no_damage_frame: int = 16           # 当たったキャラが獲得する無敵フレーム
-    hit_stop: int = 6                   # ヒットストップするフレーム
-    shake: int = 10                     # ヒットストップ時振動する大きさ
+    hit_stop: int = 12                  # ヒットストップするフレーム
+    shake: int = 12                     # ヒットストップ時振動する大きさ
     is_include_ratio: bool = True       # フレーム・振動計算時にダメージ量による変動するか
 
     hit_circles: list[Collision_Circle] = field(default_factory=list)
