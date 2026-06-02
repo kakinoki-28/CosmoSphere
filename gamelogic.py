@@ -60,16 +60,12 @@ class GameState:
     """ ゲーム状況を更新してフレームを生成 """
     def update(self):
         self.frame_number += 1
-        frame = ""
         self.stage.update()
-        #frame += self.stage.frame
         # リスト順による判定の優先順位を排除するためキャラ情報を優先して更新
         for character in self.characters_list:
             character.update(self.stage)
         for character in self.characters_list:
             character.objects_update(self.stage)
-            #frame += character.frame
-        return frame.encode()
 
 
 """ ゲームステージ全体の情報の管理するクラス """
@@ -163,43 +159,6 @@ class Character(GameObject):
             self.sync_shot = SyncShooter(user=self)
             # ハンマー攻撃
             self.hammer = Hammer(user=self)
-
-    @property
-    def frame(self):
-        # ヒットストップ時の振動
-        if self.stop_frame != 0:
-            shake = int(self.shake_ratio*self.stop_count/self.stop_frame)+1
-            self.shake_x = int( ( (-1)**int((self.stop_count%4-1)/2) )*(randint(0,int(shake/2))+int(shake/2)))
-            self.shake_y = int( ( (-1)**randint(0,1) )*(randint(0,int(shake/2))+int(shake/2)))
-            if self.on_ground:
-                self.shake_y = 0
-        else:
-            self.shake_x = self.shake_y = 0
-
-        frame = "player,"+ self.color +"," + str(self.hp) +"," + str(self.HP_MAX) +","
-        frame += str(round(self.pos.x)+self.shake_x)+","+str(round(self.pos.y)+self.shake_y)+","
-        frame += self.motion_id +","+ str(self.motion_count) +","
-        frame += str(self.combo_count) +","+ str(self.no_damage_count) + "\n"
-
-        for ef in self.effects:
-            frame += ef.frame
-        frame += self.shield.frame
-        if self.color == "red":
-            frame += self.energy_gun.frame
-            frame += self.drone.frame
-            frame += self.sync_shot.frame
-            frame += self.hammer.frame
-
-        return frame
-
-    @property
-    def motion_id(self):
-        if self.motion == "none":
-            return "0"
-        elif self.motion == "bounce":
-            return "1"
-        elif self.motion == "airjump":
-            return "2"
 
     """ 入力(InputHandler)が更新される処理 """
     def input_update(self, new_input:InputHandler):
@@ -477,11 +436,6 @@ class Effect:
         self.count = 0
         self.active = True
 
-    @property
-    def frame(self):
-        if self.active:
-            return "effect"+","+ self.name+","+str(round(self.pos.x))+","+str(round(self.pos.y))+","+str(self.count)+"\n"
-
     def update(self):
         self.count += 1
         if self.name == "airjump" and self.count>10:
@@ -502,14 +456,6 @@ class Shield:
         self.instant_count = 0
         self.recovery_count = 0
         self.hitback_bullets = []
-
-    @property
-    def frame(self):
-        frame = "shield,"+ self.status +","+ str(round(self.radius)) +"\n"
-        for bullet in self.hitback_bullets:
-            frame += bullet.frame
-
-        return frame
 
     """ 入力開始時 """
     def shield_start(self):
@@ -644,13 +590,6 @@ class LinerBullet(GameObject):
         self.display = True         # 弾が表示されるかどうかの判定
         self.bounced = False        # シールド・台などに反射した後かどうかの判定
 
-    @property
-    def frame(self):
-        if self.display:
-            return "bullet " + self.CONST.name +" "+ str(round(self.pos)) +" "+ str(round(self.speed, 1)) +"\n"
-        else:
-            return ""
-
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         for circle in self.CONST.hit_circles:
             circle_pos = self.pos + circle.rel_pos
@@ -741,33 +680,6 @@ class Hammer:
         self.angle = 0
 
         self.distance_ratio = 1
-
-    @property
-    def frame(self):
-        if self.active:
-            x, y = self.user.x + self.offset[0] + self.user.shake_x, self.user.y + self.offset[1] + self.user.shake_y
-            angle = self.degree
-            if self.motion == "attack":
-                # 食い込み補正
-                if self.direction == "left":
-                    x -= (1-self.distance_ratio)*(self.offset[0]+self.FRAME_DATA[self.motion_count-1][0][0])
-                    angle -= (1-self.distance_ratio)*(self.degree+self.FRAME_DATA[self.motion_count-1][1])
-                else:
-                    x -= (1-self.distance_ratio)*(self.offset[0]-self.FRAME_DATA[self.motion_count-1][0][0])
-                    angle -= (1-self.distance_ratio)*(self.degree-self.FRAME_DATA[self.motion_count-1][1])
-                y -= (1-self.distance_ratio)*(self.offset[1]-self.FRAME_DATA[self.motion_count-1][0][1])
-
-            frame = "hammer,"+str(int(x))+","+str(int(y))+","+str(int(angle))+","+self.motion
-
-            if self.motion == "start_up" or self.motion == "none":
-                frame += ","+str(self.motion_count)+","+str(self.STARTUP)
-            elif self.motion == "attack":
-                frame += ","+str(self.motion_count-self.STARTUP)+","+str(self.ATTACKING)
-            elif self.motion == "recovery":
-                frame += ","+str(self.motion_count-self.STARTUP-self.ATTACKING)+","+str(self.RECOVERY)
-            return frame+"\n"
-        else:
-            return ""
 
     def reset(self):
         self.active = self.user.action_busy = False
@@ -880,18 +792,6 @@ class EnergyGun:
 
         self.angle = 0
         self.angle_range = self.CONST.angle_range_max
-
-    @property
-    def frame(self):
-        frame = "egun,"+ self.status +","+ str(round(self.angle)) +","+ str(self.angle_range) +","
-        frame += str(self.charge_count) +","+ str(self.CHARGE) +","
-        frame += str(len(self.magazine)) +","+ str(self.BULLET_MAX) +","
-        frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
-
-        for bullet in self.mag:
-            frame += bullet.frame
-
-        return frame
 
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         bullet_list = []
@@ -1010,13 +910,6 @@ class Drone(GameObject):
         self.homing_count = 0       # 追尾する間隔のカウント
         self.hitwait_count = 0      # ヒットストップ中のカウント
 
-    @property
-    def frame(self):
-        if self.active or self.wait:
-            return "drone," + str(round(self.x)) +","+ str(round(self.y)) +"\n"
-        else:
-            return ""
-
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         for circle in self.CONST.hit_circles:
             circle_pos = self.pos + circle.rel_pos
@@ -1089,17 +982,6 @@ class DroneManager:
         self.interval_count = 0         # ドローン射出の間隔のカウント
         self.shoot_count = 0            # ドローン射出数カウント
         self.reload_count = 0           # ドローンの再装填カウント
-
-    @property
-    def frame(self):
-        frame = "drone_mgr,"+ self.status +","
-        frame += str(len(self.mag)) +","+ str(self.BULLET_MAX) +","
-        frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
-
-        for drone in self.mag:
-            frame += drone.frame
-
-        return frame
 
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
         drone_list = []
@@ -1185,15 +1067,6 @@ class SyncShooter:
 
         self.shoot_count = 0        # 設置回数のカウント
         self.reload_count = 0       # 再装填の時間カウント
-
-    @property
-    def frame(self):
-        frame = "syncshot,"+ str(self.shoot_count) +","+ str(self.BULLET_MAX)  +","
-        frame += str(self.reload_count) +","+ str(self.RELOAD) +"\n"
-        # 弾の表示
-        for bullet in self.magazine:
-            frame += bullet.frame
-        return frame
 
     # くらい処理
     def hit_check(self, pos, r, anti_bullet=False, anti_shield=False):
