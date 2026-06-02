@@ -1,10 +1,11 @@
 import pygame as pg
-from pygame.math import Vector2
+from pygame.math import Vector2, clamp
 import configparser
 
 class InputHandler:
     """ 各具象入力を抽象入力に変換するクラス """
     FILENAME = "inputconfig.ini"
+    ATTACK_ACTIONS = ["attack", "skill1", "skill2", "skill3"]
     def __init__(self):
         self.direction = Vector2(0, 0)
         self.skills = [False] * 3
@@ -20,6 +21,15 @@ class InputHandler:
 
     def __str__(self):
         return f"{self.direction}, {self.skills}, attack={self.attack}, shield={self.shield}"
+    
+    def copy(self):
+        new_handler = InputHandler()
+        new_handler.direction = self.direction.copy()
+        new_handler.skills = self.skills.copy()
+        new_handler.attack = self.attack
+        new_handler.shield = self.shield
+        new_handler.actions = self.actions.copy()
+        return new_handler
 
     def set_input(self, direction:Vector2, skills:list[bool], attack:bool, shield:bool):
         self.direction = direction
@@ -40,55 +50,70 @@ class InputHandler:
         return self.shield
 
     """ 各アクションから抽象入力へ変換 """
-    def add_action(self, action):
-        self.actions.append(action)
-        if action == "up" and self.direction[1]<=0:
-            self.direction += Vector2(0,1)
-        elif action == "down" and self.direction[1]>=0:
-            self.direction += Vector2(0,-1)
-        elif action == "left" and self.direction[0]>=0:
-            self.direction += Vector2(-1,0)
-        elif action == "right" and self.direction[0]<=0:
-            self.direction += Vector2(1,0)
-        elif action[:5] == "skill":
-            self.skills[int(action[5])-1]=True
-        elif action == "attack":
-            self.attack = True
-        elif action == "shield":
-            self.shield = True
+    def decode_actions(self):
+        self.direction = Vector2(0, 0)
+        self.attack = False
+        self.shield = False
+        self.skills = [False] * 3
+        for action, origin in self.actions:
+            if action == "up":
+                self.direction += Vector2(0,1)
+            elif action == "down":
+                self.direction += Vector2(0,-1)
+            elif action == "left":
+                self.direction += Vector2(-1,0)
+            elif action == "right":
+                self.direction += Vector2(1,0)
+            elif action[:5] == "skill":
+                self.skills[int(action[5])-1]=True
+            elif action == "attack":
+                self.attack = True
+            elif action == "shield":
+                self.shield = True
+        self.direction.x = clamp(self.direction.x, -1, 1)
+        self.direction.y = clamp(self.direction.y, -1, 1)
 
-    def remove_action(self, action):
-        self.actions.remove(action)
-        if action == "up" and self.direction[1]>0:
-            self.direction -= Vector2(0,1)
-        elif action == "down" and self.direction[1]<0:
-            self.direction -= Vector2(0,-1)
-        elif action == "left" and self.direction[0]<0:
-            self.direction -= Vector2(-1,0)
-        elif action == "right" and self.direction[0]>0:
-            self.direction -= Vector2(1,0)
-        elif action[:5] == "skill":
-            self.skills[int(action[5])-1]=False
-        elif action == "attack":
-            self.attack = False
-        elif action == "shield":
-            self.shield = False
+    def add_action(self, action:str, origin:str):
+        self.actions.append((action, origin))
+        self.decode_actions()
+
+    def remove_action(self, action:str, origin:str):
+        self.actions.remove((action, origin))
+        self.decode_actions()
 
     """ キーボード入力からアクションへ変換 """
     def keydown(self, key):
         if pg.key.name(key) in self.config["KEY"].values():
             for action in [k for k, v in self.config["KEY"].items() if v==pg.key.name(key)]:
-                if not action in self.actions:
-                    self.add_action(action)
-            return True
+                if action in self.ATTACK_ACTIONS:
+                    if not (action, "common") in self.actions:
+                        self.add_action(action, "common")
+                        return True
+                    else:
+                        return False
+                else:
+                    if not (action, f"key_{key}") in self.actions:
+                        self.add_action(action, f"key_{key}")
+                        return True
+                    else:
+                        return False
+                        
         else:
             return False
 
     def keyup(self, key):
         if pg.key.name(key) in self.config["KEY"].values():
             for action in [k for k, v in self.config["KEY"].items() if v==pg.key.name(key)]:
-                if action in self.actions:
-                    self.remove_action(action)
+                if action in self.ATTACK_ACTIONS:
+                    if (action, "common") in self.actions:
+                        self.remove_action(action, "common")
+                    else:
+                        return False
+                else:
+                    if (action, f"key_{key}") in self.actions:
+                        self.remove_action(action, f"key_{key}")
+                    else:
+                        return False
             return True
         else:
             return False
@@ -96,16 +121,34 @@ class InputHandler:
     """ コントローラーボタン入力からアクションへ変換 """
     def buttondown(self, button):
         action = self.config["JOYSTICK"][f"Button{button}"]
-        if action!="" and (not action in self.actions):
-            self.add_action(action)
+        if action!="":
+            if action in self.ATTACK_ACTIONS:
+                if not (action, "common") in self.actions:
+                    self.add_action(action, "common")
+                else:
+                    return False
+            else:
+                if not (action, f"button_{button}") in self.actions:
+                    self.add_action(action, f"button_{button}")
+                else:
+                    return False
             return True
         else:
             return False
 
     def buttonup(self, button):
         action = self.config["JOYSTICK"][f"Button{button}"]
-        if action!="" and action in self.actions:
-            self.remove_action(action)
+        if action!="":
+            if action in self.ATTACK_ACTIONS:
+                if (action, "common") in self.actions:
+                    self.remove_action(action, "common")
+                else:
+                    return False
+            else:
+                if (action, f"button_{button}") in self.actions:
+                    self.remove_action(action, f"button_{button}")
+                else:
+                    return False
             return True
         else:
             return False
@@ -115,37 +158,45 @@ class InputHandler:
         action = self.config["JOYSTICK"][f"Axis{axis}"]
         threshold = float(self.config["JOYSTICK"]["threshold"])
         if action=="0":
-            if (not "right" in self.actions) and value >= threshold:
-                self.add_action("right")
-            elif (not "left" in self.actions) and value <= -threshold:
-                self.add_action("left")
-            elif "right" in self.actions and value < threshold:
-                self.remove_action("right")
-            elif "left" in self.actions and value > -threshold:
-                self.remove_action("left")
+            if (not ("right", f"axis_{axis}") in self.actions) and value >= threshold:
+                self.add_action("right", f"axis_{axis}")
+            elif (not ("left", f"axis_{axis}") in self.actions) and value <= -threshold:
+                self.add_action("left", f"axis_{axis}")
+            elif ("right", f"axis_{axis}") in self.actions and value < threshold:
+                self.remove_action("right", f"axis_{axis}")
+            elif ("left", f"axis_{axis}") in self.actions and value > -threshold:
+                self.remove_action("left", f"axis_{axis}")
             else:
                 return False
             return True
         elif action=="1":
-            if (not "down" in self.actions) and value >= threshold:
-                self.add_action("down")
-            elif (not "up" in self.actions) and value <= -threshold:
-                self.add_action("up")
-            elif "down" in self.actions and value < threshold:
-                self.remove_action("down")
-            elif "up" in self.actions and value > -threshold:
-                self.remove_action("up")
+            if (not ("down", f"axis_{axis}") in self.actions) and value >= threshold:
+                self.add_action("down", f"axis_{axis}")
+            elif (not ("up", f"axis_{axis}") in self.actions) and value <= -threshold:
+                self.add_action("up", f"axis_{axis}")
+            elif ("down", f"axis_{axis}") in self.actions and value < threshold:
+                self.remove_action("down", f"axis_{axis}")
+            elif ("up", f"axis_{axis}") in self.actions and value > -threshold:
+                self.remove_action("up", f"axis_{axis}")
             else:
                 return False
             return True
         elif action!="":
             depth = float(self.config["JOYSTICK"]["depth"])
-            if (not action in self.actions) and value >= depth:
-                self.add_action(action)
-            elif action in self.actions and value < depth:
-                self.remove_action(action)
+            if action in self.ATTACK_ACTIONS:
+                if not (action, "common") in self.actions and value >= depth:
+                    self.add_action(action, f"common")
+                elif (action, "common") in self.actions and value < depth:
+                    self.remove_action(action, "common")
+                else:
+                    return False
             else:
-                return False
+                if (not (action, f"axis_{axis}") in self.actions) and value >= depth:
+                    self.add_action(action, f"axis_{axis}")
+                elif (action, f"axis_{axis}") in self.actions and value < depth:
+                    self.remove_action(action, f"axis_{axis}")
+                else:
+                    return False
             return True
         else:
             return False
@@ -154,9 +205,26 @@ class InputHandler:
     def hatmove(self, hat, value):
         using = bool(self.config["JOYSTICK"][f"Hat{hat}"])
         if using:
-            self.direction.update(value)
-            return True
-        return False
+            if (not ("right", f"hat_{hat}") in self.actions) and value[0] == 1:
+                self.add_action("right", f"hat_{hat}")
+            elif (not ("left", f"hat_{hat}") in self.actions) and value[0] == -1:
+                self.add_action("left", f"hat_{hat}")
+            elif ("right", f"hat_{hat}") in self.actions and value[0] < 1:
+                self.remove_action("right", f"hat_{hat}")
+            elif ("left", f"hat_{hat}") in self.actions and value[0] > -1:
+                self.remove_action("left", f"hat_{hat}")
+            elif (not ("up", f"hat_{hat}") in self.actions) and value[1] == 1:
+                self.add_action("up", f"hat_{hat}")
+            elif (not ("down", f"hat_{hat}") in self.actions) and value[1] == -1:
+                self.add_action("down", f"hat_{hat}")
+            elif ("up", f"hat_{hat}") in self.actions and value[1] < 1:
+                self.remove_action("up", f"hat_{hat}")
+            elif ("down", f"hat_{hat}") in self.actions and value[1] > -1:
+                self.remove_action("down", f"hat_{hat}")
+            else:
+                return False      
+        return True
+        
 
 
     """コントローラー接続時に未設定の処理を追加"""

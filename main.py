@@ -1,9 +1,12 @@
 import pygame as pg
 from input import InputHandler
+from game_manager import GameManeger
+from threading import Thread
 
 class MainApp:
     SCREENRECT = pg.Rect(0, 0, 1280, 720)
     APP_NAME = "SmashBalls"
+    FPS = 240
 
     def __init__(self):
         pg.init()
@@ -17,10 +20,31 @@ class MainApp:
         self.window = pg.display.set_mode(self.SCREENRECT.size, self.winstyle)
         pg.display.set_caption(self.APP_NAME)
 
-        self.thread_list = []
-
         self.Input = InputHandler()
-        self.joysticks = []
+        self.joysticks = {}
+
+        self.game_mgr = GameManeger()
+        self.game_mgr.init_game()
+        self.game_mgr.add_character("red", 0)
+        # デバッグ用の標的キャラの追加
+        self.game_mgr.add_character("red", 1)
+        shield_set = InputHandler()
+        shield_set.set_input(direction=pg.Vector2(0,0), skills=[False,False,False], attack=False, shield=True)
+        self.game_mgr.regist_input(1, shield_set)
+
+        self.game_thread = Thread(target=self.game_mgr.mainloop, daemon=True)
+        self.game_thread.start()
+
+        display_clock = pg.time.Clock()
+        self.display_thread = Thread(target=self.display_handler, args=(display_clock,), daemon=True)
+        self.display_thread.start()
+
+    def display_handler(self, clock):
+        while self.run:
+            clock.tick(self.FPS)
+            #print(f"FPS: {clock.get_fps():.2f}")
+            self.game_mgr.draw_game(self.window)
+            pg.display.flip()
 
     # イベント処理
     def event_handler(self):
@@ -40,19 +64,20 @@ class MainApp:
                 del self.joysticks[event.instance_id]
             # 入力処理
             elif event.type == pg.KEYDOWN:
-                input_changed = self.Input.keydown(event.key)
+                input_changed |= self.Input.keydown(event.key)
             elif event.type == pg.KEYUP:
-                input_changed = self.Input.keyup(event.key)
+                input_changed |= self.Input.keyup(event.key)
             elif event.type == pg.JOYBUTTONDOWN:
-                input_changed = self.Input.buttondown(event.button)
+                input_changed |= self.Input.buttondown(event.button)
             elif event.type == pg.JOYBUTTONUP:
-                input_changed = self.Input.buttonup(event.button)
+                input_changed |= self.Input.buttonup(event.button)
             elif event.type == pg.JOYAXISMOTION:
-                input_changed = self.Input.axismove(event.axis, event.value)
+                input_changed |= self.Input.axismove(event.axis, event.value)
             elif event.type == pg.JOYHATMOTION:
-                input_changed = self.Input.hatmove(event.hat, event.value)
+                input_changed |= self.Input.hatmove(event.hat, event.value)
 
         if input_changed:
+            self.game_mgr.regist_input(0, self.Input)
             print(self.Input)
 
     # メインループ(イベントループ処理)
@@ -63,11 +88,13 @@ class MainApp:
 
         while self.run:
             clock.tick(POLLING_RATE)
+            #clock.tick_busy_loop(POLLING_RATE)
             self.event_handler()
 
         # 正常終了時処理
-        for th in self.thread_list:
-            th.join()
+        self.game_mgr.run = False
+        self.display_thread.join()
+        self.game_thread.join()
         print("Bye!")
 
 if __name__ == '__main__':
