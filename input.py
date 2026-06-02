@@ -5,6 +5,7 @@ import configparser
 class InputHandler:
     """ 各具象入力を抽象入力に変換するクラス """
     FILENAME = "inputconfig.ini"
+    ATTACK_ACTIONS = ["attack", "skill1", "skill2", "skill3"]
     def __init__(self):
         self.direction = Vector2(0, 0)
         self.skills = [False] * 3
@@ -84,17 +85,26 @@ class InputHandler:
     def keydown(self, key):
         if pg.key.name(key) in self.config["KEY"].values():
             for action in [k for k, v in self.config["KEY"].items() if v==pg.key.name(key)]:
-                if not (action, f"key_{key}") in self.actions:
-                    self.add_action(action, f"key_{key}")
-            return True
+                if action in self.ATTACK_ACTIONS:
+                    if not (action, "common") in self.actions:
+                        self.add_action(action, "common")
+                        return True
+                else:
+                    if not (action, f"key_{key}") in self.actions:
+                        self.add_action(action, f"key_{key}")
+                        return True
         else:
             return False
 
     def keyup(self, key):
         if pg.key.name(key) in self.config["KEY"].values():
             for action in [k for k, v in self.config["KEY"].items() if v==pg.key.name(key)]:
-                if (action, f"key_{key}") in self.actions:
-                    self.remove_action(action, f"key_{key}")
+                if action in self.ATTACK_ACTIONS:
+                    if (action, "common") in self.actions:
+                        self.remove_action(action, "common")
+                else:
+                    if (action, f"key_{key}") in self.actions:
+                        self.remove_action(action, f"key_{key}")
             return True
         else:
             return False
@@ -102,16 +112,34 @@ class InputHandler:
     """ コントローラーボタン入力からアクションへ変換 """
     def buttondown(self, button):
         action = self.config["JOYSTICK"][f"Button{button}"]
-        if action!="" and (not (action, f"button_{button}") in self.actions):
-            self.add_action(action, f"button_{button}")
+        if action!="":
+            if action in self.ATTACK_ACTIONS:
+                if not (action, "common") in self.actions:
+                    self.add_action(action, "common")
+                else:
+                    return False
+            else:
+                if not (action, f"button_{button}") in self.actions:
+                    self.add_action(action, f"button_{button}")
+                else:
+                    return False
             return True
         else:
             return False
 
     def buttonup(self, button):
         action = self.config["JOYSTICK"][f"Button{button}"]
-        if action!="" and (action, f"button_{button}") in self.actions:
-            self.remove_action(action, f"button_{button}")
+        if action!="":
+            if action in self.ATTACK_ACTIONS:
+                if (action, "common") in self.actions:
+                    self.remove_action(action, "common")
+                else:
+                    return False
+            else:
+                if (action, f"button_{button}") in self.actions:
+                    self.remove_action(action, f"button_{button}")
+                else:
+                    return False
             return True
         else:
             return False
@@ -146,12 +174,20 @@ class InputHandler:
             return True
         elif action!="":
             depth = float(self.config["JOYSTICK"]["depth"])
-            if (not (action, f"axis_{axis}") in self.actions) and value >= depth:
-                self.add_action(action, f"axis_{axis}")
-            elif (action, f"axis_{axis}") in self.actions and value < depth:
-                self.remove_action(action, f"axis_{axis}")
+            if action in self.ATTACK_ACTIONS:
+                if not (action, "common") in self.actions and value >= depth:
+                    self.add_action(action, f"common")
+                elif (action, "common") in self.actions and value < depth:
+                    self.remove_action(action, "common")
+                else:
+                    return False
             else:
-                return False
+                if (not (action, f"axis_{axis}") in self.actions) and value >= depth:
+                    self.add_action(action, f"axis_{axis}")
+                elif (action, f"axis_{axis}") in self.actions and value < depth:
+                    self.remove_action(action, f"axis_{axis}")
+                else:
+                    return False
             return True
         else:
             return False
