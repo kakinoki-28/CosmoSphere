@@ -142,8 +142,7 @@ class Character(GameObject):
         self.stop_frame = 0     # ヒットストップする時間を保存
         self.stop_count = 0     # ヒットストップをカウント
         self.shake_ratio = 0
-        self.shake_x = 0
-        self.shake_y = 0
+        self.shake_offset = Vector2(0, 0)
 
         self.effects = []
         self.sounds = []
@@ -226,12 +225,18 @@ class Character(GameObject):
             if not ef.active:
                 self.effects.remove(ef)
 
-        # ヒットストップ更新
+        # ヒットストップ時処理（振動はupdate内で処理する）
         if self.stop_count:
             self.stop_count -= 1
+            shake = int(self.shake_ratio*self.stop_count/self.stop_frame)+1
+            random_side = (-1)**randint(0,1)
+            self.shake_offset = Vector2( int( (-1)**(self.stop_count//2)*(randint(0,shake//2)+round(shake/2))), int( random_side*(randint(0,shake//2)+round(shake/2)) ) )
+            if self.on_ground:
+                self.shake_offset.y = 0
             return None
         else:
             self.stop_frame = 0
+            self.shake_offset = Vector2(0, 0)
 
         # ダメージ直後カウント更新
         if self.after_blow_count>0:
@@ -696,7 +701,6 @@ class Hammer:
                 self.direction = "left"
                 self.offset.x *= -1
                 self.angle *= -1
-                print(f"left  offset: {self.offset}, angle: {self.angle}")
             else:
                 self.direction = "right"
 

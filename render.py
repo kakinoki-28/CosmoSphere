@@ -107,17 +107,8 @@ class GameRenderer:
                 if ratio > 0:
                     white_level = int(128*ratio/2+64)
                     chara_image.fill((white_level, white_level, white_level, 0), special_flags = pygame.BLEND_RGBA_ADD)
-            # ヒットストップ時の振動
-            if chara.stop_frame != 0:
-                shake = int(chara.shake_ratio*chara.stop_count/chara.stop_frame)+1
-                shake_x = int( ( (-1)**int((chara.stop_count%4-1)/2) )*(randint(0,int(shake/2))+int(shake/2)))
-                shake_y = int( ( (-1)**randint(0,1) )*(randint(0,int(shake/2))+int(shake/2)))
-                if chara.on_ground:
-                    shake_y = 0
-            else:
-                shake_x = shake_y = 0
-            # キャラの描画
-            X, Y = round(chara.pos + (shake_x, shake_y))
+            # キャラの描画（ヒット時振動あり）
+            X, Y = round(chara.pos + chara.shake_offset)
             blit_center(self.screen, chara_image, (X, self.screen.get_height()-Y))
 
             # シールド
