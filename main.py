@@ -1,6 +1,6 @@
 import pygame as pg
 from input import InputHandler
-from game_manager import GameManeger
+from game_manager import GameManeger, RollBackManager
 from threading import Thread
 import id_maker
 
@@ -25,8 +25,9 @@ class MainApp:
         self.chara_input_map = {}
         self.joysticks = {}
 
-        self.game_mgr = GameManeger()
-        self.game_mgr.init_game()
+        #self.game_mgr = GameManeger()
+        #self.game_mgr.init_game()
+        self.game_mgr = RollBackManager()
         self.key_chara_id = self.add_character("red")
 
         self.game_thread = Thread(target=self.game_mgr.mainloop, daemon=True)
@@ -89,7 +90,8 @@ class MainApp:
         if any(input_changed.values()):
             for chara_id, changed in input_changed.items():
                 if changed:
-                    self.game_mgr.regist_input(chara_id, self.chara_input_map[chara_id])
+                    if not self.game_mgr.regist_input(chara_id, self.chara_input_map[chara_id], self.game_mgr.current_state.frame_number-8):
+                        print("Input is skipped")
                     print(f"ID({chara_id})'s input : {self.chara_input_map[chara_id]}")
 
     # メインループ(イベントループ処理)
