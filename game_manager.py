@@ -32,8 +32,8 @@ class GameManeger:
             raise ValueError(f"{color} is not available color")
 
     """ キャラの削除 """
-    def remove_character(self, character):
-        self.state.remove_character(character)
+    def remove_character(self, id):
+        self.state.remove_character(id)
 
     """ 指定idのキャラへ入力を登録 """    
     def regist_input(self, id, new_input):
