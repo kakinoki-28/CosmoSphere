@@ -2,6 +2,7 @@ import pygame as pg
 from input import InputHandler
 from game_manager import GameManeger
 from threading import Thread
+import id_maker
 
 class MainApp:
     SCREENRECT = pg.Rect(0, 0, 1280, 720)
@@ -20,17 +21,13 @@ class MainApp:
         self.window = pg.display.set_mode(self.SCREENRECT.size, self.winstyle)
         pg.display.set_caption(self.APP_NAME)
 
-        self.Input = InputHandler()
+        self.joy_chara_map = {}
+        self.chara_input_map = {}
         self.joysticks = {}
 
         self.game_mgr = GameManeger()
         self.game_mgr.init_game()
-        self.game_mgr.add_character("red", 0)
-        # デバッグ用の標的キャラの追加
-        self.game_mgr.add_character("red", 1)
-        shield_set = InputHandler()
-        shield_set.set_input(direction=pg.Vector2(0,0), skills=[False,False,False], attack=False, shield=True)
-        self.game_mgr.regist_input(1, shield_set)
+        self.key_chara_id = self.add_character("red")
 
         self.game_thread = Thread(target=self.game_mgr.mainloop, daemon=True)
         self.game_thread.start()
@@ -38,6 +35,16 @@ class MainApp:
         display_clock = pg.time.Clock()
         self.display_thread = Thread(target=self.display_handler, args=(display_clock,), daemon=True)
         self.display_thread.start()
+    
+    def add_character(self, color):
+        chara_id = id_maker.make_id(self.chara_input_map.values())
+        self.game_mgr.add_character(color, chara_id)
+        self.chara_input_map[chara_id] = InputHandler()
+        return chara_id
+
+    def remove_character(self, chara_id):
+        self.game_mgr.remove_character(chara_id)
+        del self.chara_input_map[chara_id]
 
     def display_handler(self, clock):
         while self.run:
@@ -48,7 +55,7 @@ class MainApp:
 
     # イベント処理
     def event_handler(self):
-        input_changed = False
+        input_changed = {chara_id: False for chara_id in self.chara_input_map.keys()}
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -57,28 +64,33 @@ class MainApp:
             elif event.type == pg.JOYDEVICEADDED:
                 joy = pg.joystick.Joystick(event.device_index)
                 self.joysticks[joy.get_instance_id()] = joy
-                self.Input.connect_joy(joy.get_numbuttons(), joy.get_numaxes(), joy.get_numhats())
+                self.joy_chara_map[joy.get_instance_id()] = self.add_character("red")
+                self.chara_input_map[self.joy_chara_map[joy.get_instance_id()]].connect_joy(joy.get_numbuttons(), joy.get_numaxes(), joy.get_numhats())
                 print(f"{joy.get_name()} connencted!")
             elif event.type == pg.JOYDEVICEREMOVED:
                 print(f"{self.joysticks[event.instance_id].get_name()} disconnected!")
+                self.remove_character(self.joy_chara_map[event.instance_id])
+                del self.joy_chara_map[event.instance_id]
                 del self.joysticks[event.instance_id]
             # 入力処理
             elif event.type == pg.KEYDOWN:
-                input_changed |= self.Input.keydown(event.key)
+                input_changed[self.key_chara_id] |= self.chara_input_map[self.key_chara_id].keydown(event.key)
             elif event.type == pg.KEYUP:
-                input_changed |= self.Input.keyup(event.key)
+                input_changed[self.key_chara_id] |= self.chara_input_map[self.key_chara_id].keyup(event.key)
             elif event.type == pg.JOYBUTTONDOWN:
-                input_changed |= self.Input.buttondown(event.button)
+                input_changed[self.joy_chara_map[event.instance_id]] |= self.chara_input_map[self.joy_chara_map[event.instance_id]].buttondown(event.button)
             elif event.type == pg.JOYBUTTONUP:
-                input_changed |= self.Input.buttonup(event.button)
+                input_changed[self.joy_chara_map[event.instance_id]] |= self.chara_input_map[self.joy_chara_map[event.instance_id]].buttonup(event.button)
             elif event.type == pg.JOYAXISMOTION:
-                input_changed |= self.Input.axismove(event.axis, event.value)
+                input_changed[self.joy_chara_map[event.instance_id]] |= self.chara_input_map[self.joy_chara_map[event.instance_id]].axismove(event.axis, event.value)
             elif event.type == pg.JOYHATMOTION:
-                input_changed |= self.Input.hatmove(event.hat, event.value)
+                input_changed[self.joy_chara_map[event.instance_id]] |= self.chara_input_map[self.joy_chara_map[event.instance_id]].hatmove(event.hat, event.value)
 
-        if input_changed:
-            self.game_mgr.regist_input(0, self.Input)
-            print(self.Input)
+        if any(input_changed.values()):
+            for chara_id, changed in input_changed.items():
+                if changed:
+                    self.game_mgr.regist_input(chara_id, self.chara_input_map[chara_id])
+                    print(f"ID({chara_id})'s input : {self.chara_input_map[chara_id]}")
 
     # メインループ(イベントループ処理)
     # メインスレッドで動作すること
