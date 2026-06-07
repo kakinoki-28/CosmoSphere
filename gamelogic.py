@@ -1005,7 +1005,10 @@ class DroneManager:
         # 投擲
         if self.status == "throw":
             # 投擲表現
-            self.throwing_drone.pos = (self.throwing_drone.target.pos-self.user.pos).normalize().rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
+            if self.throwing_drone.target.pos == self.user.pos:
+                self.throwing_drone.pos = Vector2(0,1).rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
+            else:
+                self.throwing_drone.pos = (self.throwing_drone.target.pos-self.user.pos).normalize().rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
             self.throw_count += 1
 
             # 投げ終わりで射出
