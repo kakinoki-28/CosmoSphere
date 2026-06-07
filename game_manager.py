@@ -72,7 +72,9 @@ class GameManeger:
 def fast_copy(obj):
     return pickle.loads(pickle.dumps(obj))
 
-""" GameManagerと同様にゲーム進行の管理を行うクラス。ロールバック処理を追加するためにGameManagerから分割 """
+""" GameManagerと同様にゲーム進行の管理を行うクラス。ロールバック処理を追加するためにGameManagerから分割
+    現在のStateから見て[1F前,2F前,4F前,8F前...]のフレームがstate_bufferに保存
+    必要に応じて自動でロールバック """
 class RollBackManager:
     STATE_BUFFER_SIZE = 8                           # ロールバック用のバッファサイズ
     ROLLBACK_ABLE_SIZE = 2**(STATE_BUFFER_SIZE-1)   # ロールバック可能なフレーム数
@@ -89,8 +91,8 @@ class RollBackManager:
 
         self.current_state = GameState()
         self.state_buffer = [fast_copy(self.current_state) for _ in range(self.STATE_BUFFER_SIZE)]
-        self.input_buffer = [[]]*self.ROLLBACK_ABLE_SIZE
-        self.character_change = [[]]*self.ROLLBACK_ABLE_SIZE
+        self.input_buffer = [[] for _ in range(self.ROLLBACK_ABLE_SIZE)]
+        self.character_change = [[] for _ in range(self.ROLLBACK_ABLE_SIZE)]
 
         self.renderer = GameRenderer()
 
@@ -98,7 +100,7 @@ class RollBackManager:
     def add_character(self, color, id):
         if color in self.available_color:
             self.current_state.add_character(color, id)
-            self.character_change[self.current_state.frame_number].append(("add", color, id))
+            self.character_change[self.current_state.frame_number % self.ROLLBACK_ABLE_SIZE].append(("add", color, id))
         else:
             raise ValueError(f"{color} is not available color")
 
@@ -106,7 +108,7 @@ class RollBackManager:
     def remove_character(self, id):
         chara = self.current_state.characters[id]
         self.current_state.remove_character(id)
-        self.character_change[self.current_state.frame_number].apppend(("remove", chara.color, id))
+        self.character_change[self.current_state.frame_numbe % self.ROLLBACK_ABLE_SIZE].apppend(("remove", chara.color, id))
     
     """ 指定フレーム番号の指定idのキャラへ入力を登録 """
     def regist_input(self, id, new_input, frame_number=-1):
@@ -119,7 +121,7 @@ class RollBackManager:
             if frame_number < self.current_state.frame_number - self.ROLLBACK_ABLE_SIZE or frame_number < self.state_buffer[-1].frame_number:
                 return False
             input_index = frame_number % self.ROLLBACK_ABLE_SIZE
-            self.input_buffer[input_index].append((id, new_input))
+            self.input_buffer[input_index].append((id, new_input.copy()))
 
             base_state_index = min([i for i, state in enumerate(self.state_buffer) if state.frame_number <= frame_number])
             base_state = fast_copy(self.state_buffer[base_state_index])
