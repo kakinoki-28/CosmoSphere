@@ -177,7 +177,7 @@ class Character(GameObject):
         if (new_input.shield==True and self.Input.shield==False) and (not self.action_busy or self.shield.status!="wait") and self.no_damage_count==0:
             self.shield.shield_start()
         #シールド KeyUp
-        if (self.Input.shield==True and new_input.shield==False):
+        if (self.Input.shield==True and new_input.shield==False) and (not self.action_busy or self.shield.status!="wait"):
             self.shield.shield_stop()
 
         #スキル1 KeyDown
@@ -936,7 +936,7 @@ class Drone(GameObject):
 
                     # 速度制限
                     if self.speed.length() > self.CONST.speed_max:
-                        self.speed.scale_to_length(self.CONST.speed)
+                        self.speed.scale_to_length(self.CONST.speed_max)
                 else:
                     self.homing_count += 1
             else:
@@ -1005,7 +1005,10 @@ class DroneManager:
         # 投擲
         if self.status == "throw":
             # 投擲表現
-            self.throwing_drone.pos = (self.throwing_drone.target.pos-self.user.pos).normalize().rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
+            if self.throwing_drone.target.pos == self.user.pos:
+                self.throwing_drone.pos = Vector2(0,1).rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
+            else:
+                self.throwing_drone.pos = (self.throwing_drone.target.pos-self.user.pos).normalize().rotate(270*self.throw_count/self.CONST.throw_time)*self.user.radius + self.user.pos
             self.throw_count += 1
 
             # 投げ終わりで射出
