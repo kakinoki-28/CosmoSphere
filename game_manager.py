@@ -106,9 +106,9 @@ class RollBackManager:
 
     """ キャラの削除 """
     def remove_character(self, id):
-        chara = self.current_state.characters[id]
+        chara = [_ for _ in self.current_state.characters_list if _.id == id][0]
         self.current_state.remove_character(id)
-        self.character_change[self.current_state.frame_numbe % self.ROLLBACK_ABLE_SIZE].apppend(("remove", chara.color, id))
+        self.character_change[self.current_state.frame_number % self.ROLLBACK_ABLE_SIZE].append(("remove", chara.color, id))
     
     """ 指定フレーム番号の指定idのキャラへ入力を登録 """
     def regist_input(self, id, new_input, frame_number=-1):

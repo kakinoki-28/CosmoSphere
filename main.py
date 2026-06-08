@@ -52,7 +52,7 @@ class MainApp:
 
     def remove_character(self, chara_id):
         self.game_mgr.remove_character(chara_id)
-        self.rollback_mgr.add_character(chara_id)
+        self.rollback_mgr.remove_character(chara_id)
         del self.chara_input_map[chara_id]
 
     def display_handler(self, clock):
