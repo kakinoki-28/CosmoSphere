@@ -61,18 +61,18 @@ class MainApp:
         Meiryo_25 = pg.font.SysFont("Meiryo",25)
         WHITE = (255,255,255)
         while self.run:
-            clock.tick(self.FPS)
+            tick = clock.tick(self.FPS)
             #print(f"FPS: {clock.get_fps():.2f}")
             if ROLLBACK_TEST:
                 self.window.fill(0)
-                self.game_mgr.draw_game(surface1)
-                self.rollback_mgr.draw_game(surface2)
+                self.game_mgr.draw_game(surface1, tick)
+                self.rollback_mgr.draw_game(surface2, tick)
                 reduced_s1 = pg.transform.smoothscale(surface1, (640,360))
                 reduced_s2 = pg.transform.smoothscale(surface2, (640,360))
                 self.window.blit(reduced_s1,(0,240))
                 self.window.blit(reduced_s2,(640,240))
             else:
-                self.game_mgr.draw_game(self.window)
+                self.game_mgr.draw_game(self.window, tick)
             pg.display.flip()
 
     # イベント処理

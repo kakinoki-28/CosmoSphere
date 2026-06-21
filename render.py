@@ -4,6 +4,7 @@ import os
 import math
 from random import randint
 import gamelogic
+import HUD
 
 IMAGE_FOLDER = "images"
 
@@ -74,8 +75,9 @@ class GameRenderer:
     def __init__(self):
         self.screen = pygame.Surface((gamelogic.Stage.WIDTH, gamelogic.Stage.HEIGHT)).convert_alpha() 
         self.image_assets = ImageAssets()
+        self.HUD_LIST = {}
 
-    def render(self, window, game_state):
+    def render(self, window, tick, game_state):
         # 背景の描画
         self.screen.blit(self.image_assets.stage["background"], (0, 0))
         # ステージの描画
@@ -83,6 +85,20 @@ class GameRenderer:
         # 台の描画
         for platform in game_state.stage.platforms:
             self.screen.blit(self.image_assets.stage["platform"], (platform.x[0], self.screen.get_height()-platform.y))
+        
+        # HUDの描画
+        TOTAL_PLAYER = len(game_state.characters_list) 
+        if TOTAL_PLAYER!=len(self.HUD_LIST.keys()):
+            self.HUD_LIST = {}
+            for chara in game_state.characters_list:
+                self.HUD_LIST[chara.id] = HUD.Enemy_HUD(color=chara.color)
+        for i, (chara_id, hud) in enumerate(self.HUD_LIST.items()):
+            x = game_state.stage.WIDTH/TOTAL_PLAYER*(i+1/2)
+            y = game_state.stage.HEIGHT/10
+            for chara in [_ for _ in game_state.characters_list if _.id == chara_id]:
+                hud.update(tick, chara.hp)
+                self.screen.blit(hud.surface,dest=(x-hud.surface.get_width()/2,y-hud.surface.get_height()/2))
+
         
         # エフェクト表示
         for chara in game_state.characters_list:

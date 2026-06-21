@@ -41,8 +41,8 @@ class GameManeger:
         self.state.regist_input(id, new_input)
 
     """ ゲームの描画 """
-    def draw_game(self, window):
-        self.renderer.render(window, self.state)
+    def draw_game(self, window, tick):
+        self.renderer.render(window, tick, self.state)
 
     """ ゲームのメイン処理 """
     def mainloop(self):
@@ -168,8 +168,8 @@ class RollBackManager:
                 state.update()
 
     """ ゲームの描画 """
-    def draw_game(self, window):
-        self.renderer.render(window, self.current_state)
+    def draw_game(self, window, tick):
+        self.renderer.render(window, tick, self.current_state)
 
     """ ゲームのメイン処理 """
     def mainloop(self):
