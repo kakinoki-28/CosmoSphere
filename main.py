@@ -33,14 +33,17 @@ class MainApp:
         self.rollback_inputs = [[] for _ in range(64*60*60)]
         self.key_chara_id = self.add_character("red")
 
+        self.polling_clock = pg.time.Clock()
+        self.display_clock = pg.time.Clock()
+
+
         self.game_thread = Thread(target=self.game_mgr.mainloop, daemon=True)
         self.game_thread.start()
         if ROLLBACK_TEST:
             self.rollback_game_thread = Thread(target=self.rollback_mgr.mainloop, daemon=True)
             self.rollback_game_thread.start()
 
-        display_clock = pg.time.Clock()
-        self.display_thread = Thread(target=self.display_handler, args=(display_clock,), daemon=True)
+        self.display_thread = Thread(target=self.display_handler, daemon=True)
         self.display_thread.start()
     
     def add_character(self, color):
@@ -55,14 +58,14 @@ class MainApp:
         self.rollback_mgr.remove_character(chara_id)
         del self.chara_input_map[chara_id]
 
-    def display_handler(self, clock):
+    def display_handler(self):
         surface1 = pg.Surface((1280,720)).convert_alpha()
         surface2 = pg.Surface((1280,720)).convert_alpha()
-        Meiryo_25 = pg.font.SysFont("Meiryo",25)
+        Meiryo_20 = pg.font.SysFont("Meiryo",20)
         WHITE = (255,255,255)
         while self.run:
-            tick = clock.tick(self.FPS)
-            #print(f"FPS: {clock.get_fps():.2f}")
+            tick = self.display_clock.tick(self.FPS)
+            #print(f"描画FPS: {clock.get_fps():.2f}")
             if ROLLBACK_TEST:
                 self.window.fill(0)
                 self.game_mgr.draw_game(surface1, tick)
@@ -73,6 +76,9 @@ class MainApp:
                 self.window.blit(reduced_s2,(640,240))
             else:
                 self.game_mgr.draw_game(self.window, tick)
+            # fps表示
+            fps_surface = Meiryo_20.render(f"FPS : {int(self.display_clock.get_fps())}  LOGIC : {int(self.game_mgr.frame_rate)}  POLLING : {int(self.polling_clock.get_fps())}", True, WHITE)
+            self.window.blit(fps_surface,dest=(5, 2))
             pg.display.flip()
 
     # イベント処理
@@ -135,10 +141,9 @@ class MainApp:
     # メインスレッドで動作すること
     def mainloop(self):
         POLLING_RATE = 1000
-        clock = pg.time.Clock()
 
         while self.run:
-            clock.tick(POLLING_RATE)
+            self.polling_clock.tick(POLLING_RATE)
             #clock.tick_busy_loop(POLLING_RATE)
             self.event_handler()
 
